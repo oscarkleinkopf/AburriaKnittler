@@ -2,19 +2,23 @@
 
 App interactiva que procesa imágenes de tejidos para estimar puntos y filas, con interfaz accesible y contador de vueltas que funciona sin conexión.
 
+**Demo:** https://oscarkleinkopf.github.io/AburriaKnittler/
+
 ## Stack
 
 - **Vite + React + TypeScript** — SPA instalable (PWA)
-- **Netlify** — hosting, Functions y AI Gateway
-- **Gemini `gemini-2.5-flash`** — análisis visual de fotos de tejido
+- **GitHub Pages** — hosting estático
+- **Gemini (opcional)** — análisis visual con `VITE_GEMINI_API_KEY`
 - **localStorage + service worker** — contador y shell offline
 
 ## Características (MVP)
 
-1. **Analizar** — sube una foto y recibe una estimación de puntos, filas, tipo de puntada y estructura del patrón.
+1. **Analizar** — sube una foto y recibe una estimación de puntos, filas, tipo de puntada y estructura.
 2. **Contador de vueltas** — +1 / −1 / reiniciar; se guarda en el dispositivo.
-3. **Accesibilidad** — botones grandes, alto contraste tipográfico y foco visible.
-4. **Offline** — la app y el contador siguen disponibles sin red; el análisis avisa si no hay conexión.
+3. **Accesibilidad** — botones grandes, alto contraste y tipografía legible.
+4. **Offline** — la app y el contador siguen disponibles sin red.
+
+Sin clave de Gemini, el análisis usa un **modo local** orientativo (sigue funcionando en Pages).
 
 ## Desarrollo local
 
@@ -23,26 +27,37 @@ npm install
 npm run dev
 ```
 
-Abre la URL que muestre Vite (por defecto `http://localhost:5173`).
+Abre `http://localhost:5173/` (base `/` en desarrollo).
 
-### Análisis con IA
+Para probar el build como en Pages:
 
-Netlify AI Gateway solo inyecta claves tras **al menos un deploy de producción** y con AI Features activado en el sitio. Hasta entonces, `/api/analyze` puede responder que la IA no está disponible.
+```bash
+npm run build:pages
+npm run preview
+```
 
-1. Enlaza el repo a Netlify y despliega.
-2. Activa AI en el panel de Netlify.
-3. Vuelve a probar el flujo Analizar (en producción o con `npm run dev` tras el deploy).
+Luego abre la URL de preview bajo `/AburriaKnittler/`.
+
+## Publicar en GitHub Pages
+
+1. En el repo: **Settings → Pages → Source: GitHub Actions**.
+2. Fusiona a `main` (o ejecuta el workflow **Deploy GitHub Pages**).
+3. (Opcional) Añade el secreto de repositorio `VITE_GEMINI_API_KEY` para análisis con IA.
+   - Restringe la clave por referrer HTTP a `https://oscarkleinkopf.github.io/*` en Google AI Studio.
+
+La app queda en: `https://oscarkleinkopf.github.io/AburriaKnittler/`
 
 ## Scripts
 
 | Comando | Descripción |
 | --- | --- |
-| `npm run dev` | Desarrollo con plugin de Netlify |
-| `npm run build` | Build de producción |
+| `npm run dev` | Desarrollo (base `/`) |
+| `npm run build:pages` | Build para GitHub Pages |
 | `npm run preview` | Vista previa del build |
+| `npm run lint` | Lint |
 
 ## Estructura
 
 - `src/pages/` — Home, Analizar, Contador
-- `netlify/functions/analyze.ts` — `POST /api/analyze`
-- `netlify.toml` — build y fallback SPA
+- `src/lib/analyze.ts` — Gemini o estimación local
+- `.github/workflows/deploy-pages.yml` — deploy automático

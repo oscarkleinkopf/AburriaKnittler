@@ -1,15 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import netlify from '@netlify/vite-plugin'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Project Pages URL: https://<user>.github.io/AburriaKnittler/
+const base = process.env.VITE_BASE ?? '/AburriaKnittler/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
-    netlify(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/icon.svg'],
+      includeAssets: ['favicon.svg', 'icons/icon.svg', 'hero-knit.svg'],
       manifest: {
         name: 'AburriaKnittler',
         short_name: 'Aburria',
@@ -18,7 +20,8 @@ export default defineConfig({
         theme_color: '#2f5d4a',
         background_color: '#f3f6f1',
         display: 'standalone',
-        start_url: '/',
+        start_url: base,
+        scope: base,
         lang: 'es',
         icons: [
           {
@@ -31,7 +34,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
-        navigateFallback: '/index.html',
+        navigateFallback: `${base}index.html`,
       },
     }),
   ],

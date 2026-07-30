@@ -4,20 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_BASE=/ vite",
     "build": "tsc -b && vite build",
+    "build:pages": "VITE_BASE=/AburriaKnittler/ npm run build && cp dist/index.html dist/404.html",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^2.14.0",
-    "@netlify/functions": "^5.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "@netlify/vite-plugin": "^2.12.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

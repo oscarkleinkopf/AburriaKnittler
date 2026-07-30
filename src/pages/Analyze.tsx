@@ -1,15 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
-
-export type AnalyzeResult = {
-  estimatedStitches: number | null
-  estimatedRows: number | null
-  stitchType: string
-  patternStructure: string
-  confidence: string
-  notes: string
-}
+import {
+  analyzeGarmentPhoto,
+  hasGeminiKey,
+  type AnalyzeResult,
+} from '../lib/analyze'
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
 
@@ -32,22 +28,9 @@ function useOnline() {
   return online
 }
 
-function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = String(reader.result ?? '')
-      const comma = result.indexOf(',')
-      const base64 = comma >= 0 ? result.slice(comma + 1) : result
-      resolve({ base64, mimeType: file.type || 'image/jpeg' })
-    }
-    reader.onerror = () => reject(new Error('No se pudo leer la imagen'))
-    reader.readAsDataURL(file)
-  })
-}
-
 export function AnalyzePage() {
   const online = useOnline()
+  const gemini = hasGeminiKey()
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -83,26 +66,14 @@ export function AnalyzePage() {
   }, [preview])
 
   async function analyze() {
-    if (!file || !online) return
+    if (!file) return
+    if (!online && gemini) return
     setStatus('loading')
     setError(null)
     setResult(null)
     try {
-      const { base64, mimeType } = await fileToBase64(file)
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(
-          typeof data.error === 'string'
-            ? data.error
-            : 'No se pudo analizar la foto. Inténtalo de nuevo.',
-        )
-      }
-      setResult(data as AnalyzeResult)
+      const data = await analyzeGarmentPhoto(file)
+      setResult(data)
       setStatus('done')
     } catch (err) {
       setStatus('error')
@@ -113,6 +84,8 @@ export function AnalyzePage() {
       )
     }
   }
+
+  const needsNetwork = gemini
 
   return (
     <section className="stack animate-enter" aria-labelledby="analyze-title">
@@ -126,10 +99,18 @@ export function AnalyzePage() {
         </p>
       </div>
 
-      {!online && (
+      {!gemini && (
+        <Banner tone="info">
+          Modo local: sin clave Gemini la estimación es orientativa en el
+          dispositivo. Para IA real, añade el secreto{' '}
+          <code>VITE_GEMINI_API_KEY</code> en GitHub Actions.
+        </Banner>
+      )}
+
+      {!online && needsNetwork && (
         <Banner tone="warn" role="alert">
-          Sin conexión: el análisis necesita internet. El contador de vueltas
-          sí funciona sin red.
+          Sin conexión: el análisis con IA necesita internet. El contador de
+          vueltas sí funciona sin red.
         </Banner>
       )}
 
@@ -165,7 +146,7 @@ export function AnalyzePage() {
       <BigButton
         variant="primary"
         block
-        disabled={!file || !online || status === 'loading'}
+        disabled={!file || status === 'loading' || (!online && needsNetwork)}
         onClick={analyze}
       >
         {status === 'loading' ? 'Analizando…' : 'Obtener estimación'}
