@@ -1,8 +1,11 @@
 import { BigButton } from '../components/BigButton'
+import { useProjects } from '../lib/ProjectsContext'
 
 const heroSrc = `${import.meta.env.BASE_URL}hero-knit.svg`
 
 export function HomePage() {
+  const { active } = useProjects()
+
   return (
     <section className="hero animate-enter" aria-labelledby="brand-title">
       <div className="hero__copy">
@@ -13,12 +16,21 @@ export function HomePage() {
           Estima puntos y filas desde una foto, y lleva tus vueltas sin perder
           el hilo.
         </p>
+        {active && (
+          <p className="hero__project">
+            Proyecto activo: <strong>{active.name}</strong> · vuelta{' '}
+            {active.rows}
+          </p>
+        )}
         <div className="hero__actions">
           <BigButton to="/analizar" variant="primary">
             Analizar foto
           </BigButton>
           <BigButton to="/contador" variant="secondary">
             Contador
+          </BigButton>
+          <BigButton to="/proyectos" variant="ghost">
+            Proyectos
           </BigButton>
         </div>
       </div>

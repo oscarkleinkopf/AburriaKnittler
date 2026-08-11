@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
+import { ProjectsProvider } from './lib/ProjectsContext'
 import './styles/tokens.css'
 import './styles/app.css'
 
@@ -13,7 +14,9 @@ const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter basename={basename}>
-      <App />
+      <ProjectsProvider>
+        <App />
+      </ProjectsProvider>
     </BrowserRouter>
   </StrictMode>,
 )

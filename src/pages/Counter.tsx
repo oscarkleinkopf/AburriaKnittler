@@ -1,31 +1,68 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
+import { useProjects } from '../lib/ProjectsContext'
+import { formatRelativeDate } from '../lib/projects'
 
-const STORAGE_KEY = 'aburriaknittler.rowCount'
-
-function readStoredCount(): number {
+function playMarkerBeep() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw == null) return 0
-    const n = Number.parseInt(raw, 10)
-    return Number.isFinite(n) && n >= 0 ? n : 0
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = 880
+    gain.gain.value = 0.08
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35)
+    osc.stop(ctx.currentTime + 0.4)
+    window.setTimeout(() => void ctx.close(), 500)
   } catch {
-    return 0
+    // audio optional
   }
 }
 
 export function CounterPage() {
-  const [count, setCount] = useState(readStoredCount)
+  const {
+    active,
+    bumpRows,
+    bumpStitches,
+    resetCounters,
+    setMarkerEvery,
+  } = useProjects()
   const [bump, setBump] = useState(false)
+  const [markerHit, setMarkerHit] = useState(false)
   const bumpTimer = useRef<number | null>(null)
+  const markerId = useId()
+  const prevRows = useRef(active?.rows ?? 0)
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(count))
-    } catch {
-      // ignore quota / private mode
+    prevRows.current = active?.rows ?? 0
+    setMarkerHit(false)
+  }, [active?.id])
+
+  useEffect(() => {
+    if (!active) return
+    const prev = prevRows.current
+    const next = active.rows
+    prevRows.current = next
+    if (
+      active.markerEvery > 0 &&
+      next > prev &&
+      next % active.markerEvery === 0
+    ) {
+      setMarkerHit(true)
+      playMarkerBeep()
+      window.setTimeout(() => setMarkerHit(false), 2500)
     }
-  }, [count])
+  }, [active, active?.rows, active?.markerEvery])
 
   function triggerBump() {
     setBump(false)
@@ -36,68 +73,162 @@ export function CounterPage() {
     })
   }
 
-  function increment() {
-    setCount((c) => c + 1)
-    triggerBump()
-  }
-
-  function decrement() {
-    setCount((c) => Math.max(0, c - 1))
-    triggerBump()
-  }
-
-  function reset() {
-    setCount(0)
-    triggerBump()
+  if (!active) {
+    return (
+      <section className="stack animate-enter">
+        <Banner tone="warn">
+          No hay proyecto activo.{' '}
+          <Link to="/proyectos">Crea uno en Proyectos</Link>.
+        </Banner>
+      </section>
+    )
   }
 
   return (
     <section className="stack animate-enter" aria-labelledby="counter-title">
       <div>
         <h1 id="counter-title" className="page-title">
-          Contador de vueltas
+          Contador
         </h1>
         <p className="page-lead">
-          Un toque por fila. Se guarda en este dispositivo, también sin
-          conexión.
+          Proyecto: <strong>{active.name}</strong>. Vueltas y puntos se guardan
+          solos, también sin conexión.
         </p>
       </div>
 
-      <div className="counter-display">
-        <div className="counter-display__label" id="row-label">
-          Vuelta actual
+      {markerHit && (
+        <Banner tone="info" role="alert">
+          Marcador: llegada a la vuelta {active.rows} (cada{' '}
+          {active.markerEvery}).
+        </Banner>
+      )}
+
+      <div className="counter-grid">
+        <div className="counter-display">
+          <div className="counter-display__label" id="row-label">
+            Vuelta
+          </div>
+          <div
+            className={`counter-display__value${bump ? ' animate-bump' : ''}`}
+            aria-labelledby="row-label"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {active.rows}
+          </div>
+          <div className="counter-mini-actions">
+            <BigButton
+              variant="primary"
+              onClick={() => {
+                bumpRows(1)
+                triggerBump()
+              }}
+              aria-label="Sumar una vuelta"
+            >
+              +1 vuelta
+            </BigButton>
+            <BigButton
+              variant="secondary"
+              onClick={() => {
+                bumpRows(-1)
+                triggerBump()
+              }}
+              aria-label="Restar una vuelta"
+              disabled={active.rows === 0}
+            >
+              −1
+            </BigButton>
+          </div>
         </div>
-        <div
-          className={`counter-display__value${bump ? ' animate-bump' : ''}`}
-          aria-labelledby="row-label"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {count}
+
+        <div className="counter-display counter-display--secondary">
+          <div className="counter-display__label" id="stitch-label">
+            Punto en la vuelta
+          </div>
+          <div
+            className={`counter-display__value counter-display__value--sm${bump ? ' animate-bump' : ''}`}
+            aria-labelledby="stitch-label"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {active.stitches}
+          </div>
+          <div className="counter-mini-actions">
+            <BigButton
+              variant="secondary"
+              onClick={() => {
+                bumpStitches(1)
+                triggerBump()
+              }}
+              aria-label="Sumar un punto"
+            >
+              +1 punto
+            </BigButton>
+            <BigButton
+              variant="ghost"
+              onClick={() => {
+                bumpStitches(-1)
+                triggerBump()
+              }}
+              aria-label="Restar un punto"
+              disabled={active.stitches === 0}
+            >
+              −1
+            </BigButton>
+          </div>
         </div>
       </div>
 
-      <div className="counter-actions">
-        <BigButton variant="primary" onClick={increment} aria-label="Sumar una vuelta">
-          +1 vuelta
-        </BigButton>
-        <BigButton
-          variant="secondary"
-          onClick={decrement}
-          aria-label="Restar una vuelta"
-          disabled={count === 0}
-        >
-          −1
-        </BigButton>
-        <BigButton
-          variant="ghost"
-          onClick={reset}
-          aria-label="Reiniciar contador"
-          disabled={count === 0}
-        >
-          Reiniciar
-        </BigButton>
+      <div className="field">
+        <label htmlFor={markerId}>Avisar cada N vueltas (0 = no)</label>
+        <input
+          id={markerId}
+          type="number"
+          min={0}
+          max={999}
+          inputMode="numeric"
+          value={active.markerEvery}
+          onChange={(e) => {
+            const n = Number.parseInt(e.target.value, 10)
+            setMarkerEvery(Number.isFinite(n) ? n : 0)
+          }}
+        />
       </div>
+
+      <BigButton
+        variant="ghost"
+        block
+        onClick={() => {
+          resetCounters()
+          triggerBump()
+        }}
+        disabled={active.rows === 0 && active.stitches === 0}
+        aria-label="Reiniciar contadores"
+      >
+        Reiniciar vueltas y puntos
+      </BigButton>
+
+      <div className="history">
+        <h2 className="section-title">Historial reciente</h2>
+        {active.history.length === 0 ? (
+          <p className="muted">Aún no hay movimientos registrados.</p>
+        ) : (
+          <ol className="history__list">
+            {active.history.slice(0, 12).map((h) => (
+              <li key={`${h.at}-${h.rows}-${h.stitches}`}>
+                <span>{formatRelativeDate(h.at)}</span>
+                <span>
+                  Vuelta {h.rows} · Punto {h.stitches}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <BigButton to="/proyectos" variant="secondary" block>
+        Cambiar de proyecto
+      </BigButton>
     </section>
   )
 }

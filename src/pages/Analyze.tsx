@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import {
@@ -6,6 +7,8 @@ import {
   hasGeminiKey,
   type AnalyzeResult,
 } from '../lib/analyze'
+import { useProjects } from '../lib/ProjectsContext'
+import { compressImageFile } from '../lib/projects'
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
 
@@ -29,6 +32,7 @@ function useOnline() {
 }
 
 export function AnalyzePage() {
+  const { active, saveAnalysis, setPhoto } = useProjects()
   const online = useOnline()
   const gemini = hasGeminiKey()
   const inputId = useId()
@@ -37,7 +41,15 @@ export function AnalyzePage() {
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<AnalyzeResult | null>(null)
+  const [result, setResult] = useState<AnalyzeResult | null>(
+    () => active?.lastAnalysis ?? null,
+  )
+
+  useEffect(() => {
+    setResult(active?.lastAnalysis ?? null)
+    setStatus(active?.lastAnalysis ? 'done' : 'idle')
+    setError(null)
+  }, [active?.id, active?.lastAnalysis])
 
   function onFileChange(next: File | null) {
     if (preview) URL.revokeObjectURL(preview)
@@ -75,6 +87,15 @@ export function AnalyzePage() {
       const data = await analyzeGarmentPhoto(file)
       setResult(data)
       setStatus('done')
+      if (active) {
+        saveAnalysis(data)
+        try {
+          const thumb = await compressImageFile(file)
+          setPhoto(thumb)
+        } catch {
+          // photo optional
+        }
+      }
     } catch (err) {
       setStatus('error')
       setError(
@@ -94,8 +115,17 @@ export function AnalyzePage() {
           Analizar tejido
         </h1>
         <p className="page-lead">
-          Sube la foto de una prenda y recibe una guía estimada de puntos,
-          filas y tipo de puntada.
+          {active ? (
+            <>
+              Proyecto activo: <strong>{active.name}</strong>. El resultado se
+              guarda en este proyecto.
+            </>
+          ) : (
+            <>
+              Sube la foto de una prenda y recibe una guía estimada.{' '}
+              <Link to="/proyectos">Crea un proyecto</Link> para guardarla.
+            </>
+          )}
         </p>
       </div>
 
@@ -162,6 +192,7 @@ export function AnalyzePage() {
         <div className="results" aria-live="polite">
           <Banner tone="info">
             Esto es una estimación orientativa, no un patrón exacto.
+            {active ? ' Guardada en el proyecto activo.' : ''}
           </Banner>
           <div className="results__item">
             <span className="results__label">Puntos (aprox.)</span>

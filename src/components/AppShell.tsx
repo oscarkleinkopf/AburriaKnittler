@@ -8,6 +8,7 @@ export function AppShell() {
           AburriaKnittler
         </NavLink>
         <nav className="shell__nav" aria-label="Principal">
+          <NavLink to="/proyectos">Proyectos</NavLink>
           <NavLink to="/analizar">Analizar</NavLink>
           <NavLink to="/contador">Contador</NavLink>
         </nav>

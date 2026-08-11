@@ -53,7 +53,7 @@ export function BigButton({
 
   const buttonProps = props as Omit<ButtonProps, keyof Common>
   return (
-    <button type="button" className={classes} {...buttonProps}>
+    <button type={buttonProps.type ?? 'button'} className={classes} {...buttonProps}>
       {children}
     </button>
   )
