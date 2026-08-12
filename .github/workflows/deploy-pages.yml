@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [source, cursor/a11y-analisis-09f1, cursor/export-import-09f1, cursor/proyectos-contador-09f1, cursor/aburriaknittler-mvp-09f1, main-source]
+    branches: [source, cursor/foto-avisos-09f1, cursor/a11y-analisis-09f1, cursor/export-import-09f1, cursor/proyectos-contador-09f1, cursor/aburriaknittler-mvp-09f1, main-source]
   workflow_dispatch:
 
 permissions:

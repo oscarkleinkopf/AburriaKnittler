@@ -2,11 +2,13 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
+import { ImagePrepPanel } from '../components/ImagePrepPanel'
 import {
   analyzeGarmentPhoto,
   hasGeminiKey,
   type AnalyzeResult,
 } from '../lib/analyze'
+import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
 import { useProjects } from '../lib/ProjectsContext'
 import { compressImageFile } from '../lib/projects'
 import {
@@ -62,6 +64,8 @@ export function AnalyzePage() {
   const notesId = useId()
   const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [prep, setPrep] = useState<PrepState | null>(null)
+  const [prepBusy, setPrepBusy] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AnalyzeResult | null>(
@@ -86,33 +90,70 @@ export function AnalyzePage() {
     return () => stopSpeaking()
   }, [])
 
-  function onFileChange(next: File | null) {
+  function clearPreview() {
     if (preview) URL.revokeObjectURL(preview)
+    setPreview(null)
+  }
+
+  function clearPrepSource() {
+    if (prep?.sourceUrl) URL.revokeObjectURL(prep.sourceUrl)
+    setPrep(null)
+  }
+
+  function resetPhoto() {
+    clearPreview()
+    clearPrepSource()
+    setFile(null)
+    setPrepBusy(false)
+  }
+
+  function onFileChange(next: File | null) {
+    resetPhoto()
     setResult(null)
     setError(null)
     setStatus('idle')
     setEditing(false)
     setSaveMsg(null)
-    if (!next) {
-      setFile(null)
-      setPreview(null)
-      return
-    }
+    if (!next) return
     if (!next.type.startsWith('image/')) {
       setError('Elige una foto (JPG, PNG o similar).')
-      setFile(null)
-      setPreview(null)
       return
     }
-    setFile(next)
-    setPreview(URL.createObjectURL(next))
+    setPrep({
+      sourceUrl: URL.createObjectURL(next),
+      rotation: 0,
+      cropInset: 0,
+    })
   }
 
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview)
+      if (prep?.sourceUrl) URL.revokeObjectURL(prep.sourceUrl)
     }
-  }, [preview])
+  }, [preview, prep?.sourceUrl])
+
+  async function applyPrep() {
+    if (!prep) return
+    setPrepBusy(true)
+    setError(null)
+    try {
+      const prepared = await renderPreparedImage(prep)
+      clearPreview()
+      setFile(prepared)
+      setPreview(URL.createObjectURL(prepared))
+      clearPrepSource()
+      setSaveMsg('Foto lista. Ya puedes obtener la estimación.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo preparar la foto.',
+      )
+    } finally {
+      setPrepBusy(false)
+    }
+  }
 
   async function analyze() {
     if (!file) return
@@ -259,22 +300,36 @@ export function AnalyzePage() {
           variant="secondary"
           block
           onClick={() => inputRef.current?.click()}
+          disabled={prepBusy || status === 'loading'}
         >
-          {file ? 'Cambiar foto' : 'Elegir foto'}
+          {file || prep ? 'Cambiar foto' : 'Elegir foto'}
         </BigButton>
-        {preview && (
-          <img
-            className="file-pick__preview"
-            src={preview}
-            alt="Vista previa del tejido seleccionado"
-          />
-        )}
       </div>
+
+      {prep && (
+        <ImagePrepPanel
+          prep={prep}
+          onChange={setPrep}
+          onApply={() => void applyPrep()}
+          onReset={resetPhoto}
+          busy={prepBusy}
+        />
+      )}
+
+      {preview && !prep && (
+        <img
+          className="file-pick__preview"
+          src={preview}
+          alt="Vista previa del tejido seleccionado"
+        />
+      )}
 
       <BigButton
         variant="primary"
         block
-        disabled={!file || status === 'loading' || (!online && needsNetwork)}
+        disabled={
+          !file || !!prep || status === 'loading' || (!online && needsNetwork)
+        }
         onClick={analyze}
       >
         {status === 'loading' ? 'Analizando…' : 'Obtener estimación'}

@@ -2,7 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
+import { usePrefs } from '../lib/PrefsContext'
 import { useProjects } from '../lib/ProjectsContext'
+import { vibrateBrief } from '../lib/prefs'
 import { formatRelativeDate } from '../lib/projects'
 
 function playMarkerBeep() {
@@ -37,11 +39,14 @@ export function CounterPage() {
     resetCounters,
     setMarkerEvery,
   } = useProjects()
+  const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
   const [bump, setBump] = useState(false)
   const [markerHit, setMarkerHit] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const bumpTimer = useRef<number | null>(null)
   const markerId = useId()
+  const soundId = useId()
+  const vibeId = useId()
   const prevRows = useRef(active?.rows ?? 0)
 
   useEffect(() => {
@@ -60,10 +65,11 @@ export function CounterPage() {
       next % active.markerEvery === 0
     ) {
       setMarkerHit(true)
-      playMarkerBeep()
+      if (alerts.sound) playMarkerBeep()
+      if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
       window.setTimeout(() => setMarkerHit(false), 2500)
     }
-  }, [active, active?.rows, active?.markerEvery])
+  }, [active, active?.rows, active?.markerEvery, alerts.sound, alerts.vibrate])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -222,6 +228,28 @@ export function CounterPage() {
             }}
           />
         </div>
+
+        <fieldset className="alert-prefs">
+          <legend className="section-title">Avisos del marcador</legend>
+          <label className="backup-mode" htmlFor={soundId}>
+            <input
+              id={soundId}
+              type="checkbox"
+              checked={alerts.sound}
+              onChange={(e) => setAlertSound(e.target.checked)}
+            />
+            Sonido
+          </label>
+          <label className="backup-mode" htmlFor={vibeId}>
+            <input
+              id={vibeId}
+              type="checkbox"
+              checked={alerts.vibrate}
+              onChange={(e) => setAlertVibrate(e.target.checked)}
+            />
+            Vibración (si el móvil la permite)
+          </label>
+        </fieldset>
 
         <BigButton
           variant="ghost"
