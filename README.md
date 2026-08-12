@@ -39,7 +39,7 @@ npm run preview
 
 1. **Proyectos** — varios tejidos con nombre, notas, foto, contador y análisis
 2. **Respaldo** — exportar / importar todos los proyectos en JSON
-3. **Analizar** — foto → estimación de puntos/filas/puntada
-4. **Contador** — vueltas + puntos, aviso cada N vueltas e historial
-5. **Accesible** — botones grandes y alto contraste
+3. **Analizar** — foto → estimación; corregir a mano y guardar; lectura en voz alta
+4. **Contador** — vueltas + puntos, aviso cada N, pantalla completa e historial
+5. **Accesible** — botones grandes, A−/A+, alto contraste
 6. **PWA** — instalable; shell + contador sin red

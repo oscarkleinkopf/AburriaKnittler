@@ -13,6 +13,7 @@
   --color-focus: #1a6b4a;
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-scale: 1;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -40,7 +41,7 @@ body {
   margin: 0;
   min-height: 100dvh;
   font-family: var(--font-body);
-  font-size: 1.125rem;
+  font-size: calc(1.125rem * var(--font-scale, 1));
   line-height: 1.5;
   color: var(--color-ink);
   background:
