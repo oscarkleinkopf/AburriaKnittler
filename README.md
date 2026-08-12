@@ -38,7 +38,8 @@ npm run preview
 ## Características
 
 1. **Proyectos** — varios tejidos con nombre, notas, foto, contador y análisis
-2. **Analizar** — foto → estimación de puntos/filas/puntada
-3. **Contador** — vueltas + puntos, aviso cada N vueltas e historial
-4. **Accesible** — botones grandes y alto contraste
-5. **PWA** — instalable; shell + contador sin red
+2. **Respaldo** — exportar / importar todos los proyectos en JSON
+3. **Analizar** — foto → estimación de puntos/filas/puntada
+4. **Contador** — vueltas + puntos, aviso cada N vueltas e historial
+5. **Accesible** — botones grandes y alto contraste
+6. **PWA** — instalable; shell + contador sin red

@@ -380,6 +380,36 @@
   cursor: pointer;
 }
 
+.backup-panel {
+  padding: var(--space-4);
+  border: 2px solid rgba(47, 93, 74, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.backup-modes {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.backup-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.backup-mode input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-brand);
+}
+
 .project-active {
   display: grid;
   gap: var(--space-3);

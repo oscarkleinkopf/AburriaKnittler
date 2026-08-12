@@ -122,6 +122,166 @@ function normalizeProject(p: Project): Project {
   }
 }
 
+export type BackupFile = {
+  app: 'AburriaKnittler'
+  format: 1
+  exportedAt: string
+  activeId: string | null
+  projects: Project[]
+}
+
+export type ImportMode = 'merge' | 'replace'
+
+export type ImportResult = {
+  state: ProjectsState
+  added: number
+  updated: number
+  total: number
+}
+
+export function buildBackup(state: ProjectsState): BackupFile {
+  return {
+    app: 'AburriaKnittler',
+    format: 1,
+    exportedAt: new Date().toISOString(),
+    activeId: state.activeId,
+    projects: state.projects.map(normalizeProject),
+  }
+}
+
+export function backupToJson(state: ProjectsState): string {
+  return `${JSON.stringify(buildBackup(state), null, 2)}\n`
+}
+
+export function downloadBackup(state: ProjectsState): void {
+  const json = backupToJson(state)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const stamp = new Date().toISOString().slice(0, 10)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `aburriaknittler-respaldo-${stamp}.json`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function extractProjects(raw: unknown): {
+  projects: Project[]
+  activeId: string | null
+} {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('El archivo no es un JSON válido de AburriaKnittler.')
+  }
+  const obj = raw as Record<string, unknown>
+
+  // Formato de respaldo
+  if (obj.app === 'AburriaKnittler' || obj.format === 1) {
+    if (!Array.isArray(obj.projects) || obj.projects.length === 0) {
+      throw new Error('El respaldo no contiene proyectos.')
+    }
+    return {
+      projects: (obj.projects as Project[]).map(normalizeProject),
+      activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
+    }
+  }
+
+  // Estado interno v1
+  if (obj.version === 1 && Array.isArray(obj.projects)) {
+    if (obj.projects.length === 0) {
+      throw new Error('El archivo no contiene proyectos.')
+    }
+    return {
+      projects: (obj.projects as Project[]).map(normalizeProject),
+      activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
+    }
+  }
+
+  // Lista suelta de proyectos
+  if (Array.isArray(raw) && raw.length > 0) {
+    return {
+      projects: (raw as Project[]).map(normalizeProject),
+      activeId: null,
+    }
+  }
+
+  throw new Error(
+    'No reconozco este archivo. Exporta un respaldo desde AburriaKnittler.',
+  )
+}
+
+export function parseBackupJson(
+  text: string,
+  current: ProjectsState,
+  mode: ImportMode,
+): ImportResult {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new Error('No se pudo leer el JSON. ¿Es un archivo de texto válido?')
+  }
+
+  const { projects: incoming, activeId } = extractProjects(raw)
+
+  if (mode === 'replace') {
+    const normalized = incoming.map(normalizeProject)
+    const activeExists = normalized.some((p) => p.id === activeId)
+    const state: ProjectsState = {
+      version: 1,
+      activeId: activeExists ? activeId : normalized[0].id,
+      projects: normalized,
+    }
+    return {
+      state,
+      added: normalized.length,
+      updated: 0,
+      total: normalized.length,
+    }
+  }
+
+  // merge: same id → replace with imported; new ids → append
+  const byId = new Map(current.projects.map((p) => [p.id, p]))
+  let added = 0
+  let updated = 0
+  for (const p of incoming) {
+    if (byId.has(p.id)) {
+      byId.set(p.id, normalizeProject(p))
+      updated += 1
+    } else {
+      byId.set(p.id, normalizeProject(p))
+      added += 1
+    }
+  }
+  const projects = Array.from(byId.values())
+  const preferred = activeId && projects.some((p) => p.id === activeId)
+    ? activeId
+    : current.activeId && projects.some((p) => p.id === current.activeId)
+      ? current.activeId
+      : projects[0].id
+
+  return {
+    state: { version: 1, activeId: preferred, projects },
+    added,
+    updated,
+    total: projects.length,
+  }
+}
+
+export async function readBackupFile(file: File): Promise<string> {
+  if (
+    file.type &&
+    !file.type.includes('json') &&
+    !file.type.includes('text') &&
+    !file.name.toLowerCase().endsWith('.json')
+  ) {
+    throw new Error('Elige un archivo .json de respaldo.')
+  }
+  return file.text()
+}
+
 export function saveState(state: ProjectsState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))

@@ -10,9 +10,12 @@ import type { AnalyzeResult } from './analyze'
 import {
   createProject,
   loadState,
+  parseBackupJson,
   pushHistory,
   saveState,
   touch,
+  type ImportMode,
+  type ImportResult,
   type Project,
   type ProjectsState,
 } from './projects'
@@ -30,6 +33,8 @@ type ProjectsApi = {
   setMarkerEvery: (n: number) => void
   saveAnalysis: (result: AnalyzeResult) => void
   setPhoto: (dataUrl: string | null) => void
+  replaceState: (next: ProjectsState) => void
+  importBackup: (jsonText: string, mode: ImportMode) => ImportResult
 }
 
 let memory = loadState()
@@ -145,6 +150,18 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     patchActive((p) => ({ ...p, photoDataUrl: dataUrl }))
   }, [])
 
+  const replaceState = useCallback((next: ProjectsState) => {
+    memory = next
+    emit()
+  }, [])
+
+  const importBackup = useCallback((jsonText: string, mode: ImportMode) => {
+    const result = parseBackupJson(jsonText, memory, mode)
+    memory = result.state
+    emit()
+    return result
+  }, [])
+
   const api = useMemo<ProjectsApi>(
     () => ({
       state,
@@ -159,6 +176,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setMarkerEvery,
       saveAnalysis,
       setPhoto,
+      replaceState,
+      importBackup,
     }),
     [
       state,
@@ -173,6 +192,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setMarkerEvery,
       saveAnalysis,
       setPhoto,
+      replaceState,
+      importBackup,
     ],
   )
 
