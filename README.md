@@ -4,11 +4,16 @@ App interactiva que procesa imágenes de tejidos para estimar puntos y filas, co
 
 **Sitio:** https://oscarkleinkopf.github.io/AburriaKnittler/
 
-## Cómo está publicado
+## Cómo está publicado / respaldado
 
-GitHub Pages está configurado para servir la rama **`main`** (archivos estáticos del build).
+| Rama | Contenido |
+| --- | --- |
+| **`source`** | Código fuente completo (respaldo principal) |
+| `cursor/proyectos-contador-09f1` | Rama de trabajo (proyectos + contador) |
+| `cursor/aburriaknittler-mvp-09f1` | MVP inicial |
+| **`main`** | Solo el build estático de GitHub Pages |
 
-El **código fuente** vive en la rama `cursor/aburriaknittler-mvp-09f1`. Al hacer push ahí, el workflow construye la app y actualiza `main`.
+Al hacer push a `source` (o a las ramas `cursor/*` del workflow), Actions construye la app y actualiza `main`.
 
 ## Stack
 
@@ -37,5 +42,3 @@ npm run preview
 3. **Contador** — vueltas + puntos, aviso cada N vueltas e historial
 4. **Accesible** — botones grandes y alto contraste
 5. **PWA** — instalable; shell + contador sin red
-
-El código fuente de esta mejora está en `cursor/proyectos-contador-09f1`.
