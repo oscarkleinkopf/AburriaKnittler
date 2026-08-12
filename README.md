@@ -2,38 +2,75 @@
 
 App interactiva que procesa imágenes de tejidos para estimar puntos y filas, con interfaz accesible y contador de vueltas que funciona sin conexión.
 
-**Sitio:** https://oscarkleinkopf.github.io/AburriaKnittler/
+**Sitio en GitHub Pages:** https://oscarkleinkopf.github.io/AburriaKnittler/
 
-## Cómo está publicado / respaldado
+---
 
-| Rama | Contenido |
+## Flujo de GitHub (respaldo + Pages)
+
+| Rama | Rol |
 | --- | --- |
-| **`source`** | Código fuente completo (respaldo principal) |
-| `cursor/proyectos-contador-09f1` | Rama de trabajo (proyectos + contador) |
-| `cursor/aburriaknittler-mvp-09f1` | MVP inicial |
-| **`main`** | Solo el build estático de GitHub Pages |
+| **`source`** | Código completo. **Aquí se trabaja y se respalda.** |
+| **`main`** | Solo el build estático. **GitHub Pages publica desde aquí.** |
 
-Al hacer push a `source` (o a las ramas `cursor/*` del workflow), Actions construye la app y actualiza `main`.
+```text
+editas código → push a source → GitHub Actions construye → actualiza main → Pages
+```
 
-## Stack
+### Configuración de Pages (una vez)
 
-- Vite + React + TypeScript (PWA)
-- GitHub Pages
-- Gemini opcional (`VITE_GEMINI_API_KEY`) o estimación local
+1. Repo → **Settings → Pages**
+2. **Source:** Deploy from a branch
+3. **Branch:** `main` / folder `/` (root)
+4. Guarda
 
-## Desarrollo
+No hace falta cambiar esto en cada deploy: Actions ya publica el build en `main`.
+
+### Cómo publicar un cambio
 
 ```bash
+git checkout source
+# ... cambios ...
+git add -A
+git commit -m "Tu mensaje"
+git push origin source
+```
+
+Luego mira **Actions → Deploy to GitHub Pages**. Cuando termine en verde, recarga el sitio (a veces hace falta Ctrl+Shift+R).
+
+También puedes lanzar el workflow a mano: **Actions → Deploy to GitHub Pages → Run workflow**.
+
+### Secreto opcional (IA)
+
+**Settings → Secrets and variables → Actions →** `VITE_GEMINI_API_KEY`  
+Sin clave, el análisis usa modo local en el dispositivo.
+
+---
+
+## Desarrollo local
+
+```bash
+git clone https://github.com/oscarkleinkopf/AburriaKnittler.git
+cd AburriaKnittler
+git checkout source
 npm install
 npm run dev
 ```
 
-Build como en producción:
+Probar el build como en Pages:
 
 ```bash
 npm run build:pages
 npm run preview
 ```
+
+Abre la URL de preview bajo `/AburriaKnittler/`.
+
+## Stack
+
+- Vite + React + TypeScript (PWA)
+- GitHub Pages (`main` = estático, `source` = código)
+- Gemini opcional (`VITE_GEMINI_API_KEY`)
 
 ## Características
 
@@ -43,3 +80,12 @@ npm run preview
 4. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
 5. **Accesible** — botones grandes, A−/A+, alto contraste
 6. **PWA** — instalable; shell + contador sin red
+
+## Scripts
+
+| Comando | Uso |
+| --- | --- |
+| `npm run dev` | Desarrollo (base `/`) |
+| `npm run build:pages` | Build con base `/AburriaKnittler/` + `404.html` |
+| `npm run preview` | Vista previa del build |
+| `npm run lint` | Lint |

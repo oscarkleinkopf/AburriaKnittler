@@ -1,8 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Flujo: push a `source` → build → publica en `main` → Pages sirve main/
 on:
   push:
-    branches: [source, cursor/foto-avisos-09f1, cursor/a11y-analisis-09f1, cursor/export-import-09f1, cursor/proyectos-contador-09f1, cursor/aburriaknittler-mvp-09f1, main-source]
+    branches: [source]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,7 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build
+      - name: Build for GitHub Pages
         env:
           VITE_BASE: /AburriaKnittler/
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
@@ -37,7 +38,7 @@ jobs:
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
 
-      - name: Publish dist to main (Pages source)
+      - name: Publish dist to main
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -45,3 +46,4 @@ jobs:
           publish_dir: ./dist
           force_orphan: true
           enable_jekyll: false
+          commit_message: 'deploy: ${{ github.sha }}'
