@@ -1,11 +1,14 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   compressImageFile,
+  downloadBackup,
   formatRelativeDate,
+  readBackupFile,
+  type ImportMode,
 } from '../lib/projects'
 
 export function ProjectsPage() {
@@ -17,21 +20,27 @@ export function ProjectsPage() {
     updateProject,
     deleteProject,
     setPhoto,
+    importBackup,
   } = useProjects()
   const nameId = useId()
   const notesId = useId()
+  const importId = useId()
+  const importRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [importMode, setImportMode] = useState<ImportMode>('merge')
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
     const project = addProject(name, notes)
     setName('')
     setNotes('')
+    setError(null)
     setMessage(`Proyecto «${project.name}» listo.`)
   }
 
@@ -51,6 +60,7 @@ export function ProjectsPage() {
       notes: editNotes.trim(),
     })
     setEditingId(null)
+    setError(null)
     setMessage('Proyecto actualizado.')
   }
 
@@ -59,9 +69,53 @@ export function ProjectsPage() {
     try {
       const dataUrl = await compressImageFile(file)
       setPhoto(dataUrl)
+      setError(null)
       setMessage('Foto guardada en el proyecto.')
     } catch {
-      setMessage('No se pudo guardar la foto.')
+      setMessage(null)
+      setError('No se pudo guardar la foto.')
+    }
+  }
+
+  function onExport() {
+    try {
+      downloadBackup(state)
+      setError(null)
+      setMessage(
+        `Respaldo descargado (${state.projects.length} proyecto${state.projects.length === 1 ? '' : 's'}).`,
+      )
+    } catch {
+      setMessage(null)
+      setError('No se pudo crear el archivo de respaldo.')
+    }
+  }
+
+  async function onImportFile(file: File | null) {
+    if (!file) return
+    setError(null)
+    try {
+      if (importMode === 'replace') {
+        const ok = window.confirm(
+          'Esto reemplazará TODOS los proyectos de este dispositivo por el contenido del archivo. ¿Continuar?',
+        )
+        if (!ok) return
+      }
+      const text = await readBackupFile(file)
+      const result = importBackup(text, importMode)
+      setMessage(
+        importMode === 'replace'
+          ? `Respaldo restaurado: ${result.total} proyecto${result.total === 1 ? '' : 's'}.`
+          : `Importado: ${result.added} nuevo${result.added === 1 ? '' : 's'}, ${result.updated} actualizado${result.updated === 1 ? '' : 's'} (${result.total} en total).`,
+      )
+    } catch (err) {
+      setMessage(null)
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo importar el respaldo.',
+      )
+    } finally {
+      if (importRef.current) importRef.current.value = ''
     }
   }
 
@@ -73,11 +127,64 @@ export function ProjectsPage() {
         </h1>
         <p className="page-lead">
           Cada proyecto guarda su contador, notas, foto y último análisis en
-          este dispositivo.
+          este dispositivo. Puedes exportar un JSON para cambiar de móvil.
         </p>
       </div>
 
       {message && <Banner tone="info">{message}</Banner>}
+      {error && (
+        <Banner tone="error" role="alert">
+          {error}
+        </Banner>
+      )}
+
+      <div className="backup-panel stack">
+        <h2 className="section-title">Respaldo</h2>
+        <p className="muted">
+          Descarga un archivo JSON con todos tus proyectos, o restaura uno
+          guardado antes.
+        </p>
+        <BigButton type="button" variant="secondary" block onClick={onExport}>
+          Exportar proyectos (.json)
+        </BigButton>
+        <fieldset className="backup-modes">
+          <legend className="sr-only">Modo de importación</legend>
+          <label className="backup-mode">
+            <input
+              type="radio"
+              name="import-mode"
+              checked={importMode === 'merge'}
+              onChange={() => setImportMode('merge')}
+            />
+            Combinar con lo que ya tengo
+          </label>
+          <label className="backup-mode">
+            <input
+              type="radio"
+              name="import-mode"
+              checked={importMode === 'replace'}
+              onChange={() => setImportMode('replace')}
+            />
+            Reemplazar todo
+          </label>
+        </fieldset>
+        <input
+          id={importId}
+          ref={importRef}
+          className="file-pick__input"
+          type="file"
+          accept="application/json,.json,text/json,text/plain"
+          onChange={(e) => void onImportFile(e.target.files?.[0] ?? null)}
+        />
+        <BigButton
+          type="button"
+          variant="ghost"
+          block
+          onClick={() => importRef.current?.click()}
+        >
+          Importar desde archivo
+        </BigButton>
+      </div>
 
       {active && (
         <div className="project-active">
@@ -96,7 +203,7 @@ export function ProjectsPage() {
                 accept="image/*"
                 capture="environment"
                 className="file-pick__input"
-                onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
+                onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
               />
               <span className="big-button big-button--secondary">
                 {active.photoDataUrl ? 'Cambiar foto' : 'Añadir foto'}
@@ -215,6 +322,7 @@ export function ProjectsPage() {
                         variant="primary"
                         onClick={() => {
                           setActive(p.id)
+                          setError(null)
                           setMessage(`Ahora trabajas en «${p.name}».`)
                         }}
                       >
@@ -244,6 +352,7 @@ export function ProjectsPage() {
                           )
                         ) {
                           deleteProject(p.id)
+                          setError(null)
                           setMessage('Proyecto borrado.')
                         }
                       }}
