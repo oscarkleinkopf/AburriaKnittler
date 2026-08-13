@@ -80,6 +80,66 @@ body::before {
   min-height: 100dvh;
 }
 
+/* Alto contraste: más negro sobre blanco, sin texturas suaves */
+html[data-contrast='high'] {
+  --color-bg: #ffffff;
+  --color-bg-deep: #ffffff;
+  --color-surface: #ffffff;
+  --color-ink: #000000;
+  --color-ink-muted: #111111;
+  --color-brand: #000000;
+  --color-brand-deep: #000000;
+  --color-brand-soft: #333333;
+  --color-accent: #000000;
+  --color-accent-soft: #eeeeee;
+  --color-danger: #7a0000;
+  --color-focus: #000000;
+}
+
+html[data-contrast='high'] body {
+  background: #ffffff;
+}
+
+html[data-contrast='high'] body::before {
+  display: none;
+}
+
+html[data-contrast='high'] .shell__header,
+html[data-contrast='high'] .project-card,
+html[data-contrast='high'] .project-active,
+html[data-contrast='high'] .backup-panel,
+html[data-contrast='high'] .timer-panel,
+html[data-contrast='high'] .image-prep,
+html[data-contrast='high'] .pattern-item,
+html[data-contrast='high'] .pattern-next {
+  background: #ffffff;
+  border-color: #000000;
+}
+
+html[data-contrast='high'] .big-button--primary {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+html[data-contrast='high'] .big-button--secondary,
+html[data-contrast='high'] .big-button--ghost {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
+}
+
+html[data-contrast='high'] .banner--info,
+html[data-contrast='high'] .banner--warn {
+  background: #ffffff;
+  border-color: #000000;
+  color: #000000;
+}
+
+html[data-contrast='high'] .counter-fs {
+  background: #ffffff;
+}
+
 h1,
 h2,
 h3 {

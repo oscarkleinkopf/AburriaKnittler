@@ -79,10 +79,13 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 3. **Patrón por filas** — instrucciones por fila y marcar hechas
 4. **Sesiones** — temporizador, tiempo de hoy y total por proyecto
 5. **Retomar** — al abrir, recuerda la vuelta y el siguiente paso
-6. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; voz alta
-7. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
-8. **Accesible** — botones grandes, A−/A+, alto contraste
-9. **PWA** — instalable; shell + contador sin red
+6. **Alto contraste** — botón Contraste en la cabecera
+7. **Atajos del contador** — mantener pulsado: +5 y luego +10
+8. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
+9. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; voz alta
+10. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
+11. **Accesible** — botones grandes, A−/A+, alto contraste
+12. **PWA** — instalable; shell + contador sin red
 
 ## Scripts
 

@@ -288,6 +288,82 @@ export function downloadBackup(state: ProjectsState): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+export type ProjectShareFile = {
+  app: 'AburriaKnittler'
+  format: 1
+  kind: 'project'
+  exportedAt: string
+  project: Project
+}
+
+export function buildProjectShare(project: Project): ProjectShareFile {
+  return {
+    app: 'AburriaKnittler',
+    format: 1,
+    kind: 'project',
+    exportedAt: new Date().toISOString(),
+    project: normalizeProject(project),
+  }
+}
+
+function safeFileSlug(name: string): string {
+  return (
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40) || 'proyecto'
+  )
+}
+
+export function downloadProject(project: Project): void {
+  const json = `${JSON.stringify(buildProjectShare(project), null, 2)}\n`
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `aburriaknittler-${safeFileSlug(project.name)}.json`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Intenta Web Share; si no, descarga el JSON del proyecto. */
+export async function shareProject(project: Project): Promise<'shared' | 'downloaded'> {
+  const file = buildProjectShare(project)
+  const json = `${JSON.stringify(file, null, 2)}\n`
+  const blob = new Blob([json], { type: 'application/json' })
+  const filename = `aburriaknittler-${safeFileSlug(project.name)}.json`
+  const shareFile = new File([blob], filename, { type: 'application/json' })
+
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      (!navigator.canShare || navigator.canShare({ files: [shareFile] }))
+    ) {
+      await navigator.share({
+        title: `AburriaKnittler — ${project.name}`,
+        text: `Proyecto de tejido: ${project.name}`,
+        files: [shareFile],
+      })
+      return 'shared'
+    }
+  } catch (err) {
+    // Usuario canceló o el sistema no pudo compartir con archivo
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err
+    }
+  }
+
+  downloadProject(project)
+  return 'downloaded'
+}
+
 function extractProjects(raw: unknown): {
   projects: Project[]
   activeId: string | null
@@ -297,15 +373,26 @@ function extractProjects(raw: unknown): {
   }
   const obj = raw as Record<string, unknown>
 
-  // Formato de respaldo
+  // Formato de un solo proyecto
+  if (
+    (obj.app === 'AburriaKnittler' || obj.format === 1) &&
+    obj.kind === 'project' &&
+    obj.project &&
+    typeof obj.project === 'object'
+  ) {
+    const project = normalizeProject(obj.project as Project)
+    return { projects: [project], activeId: project.id }
+  }
+
+  // Formato de respaldo completo
   if (obj.app === 'AburriaKnittler' || obj.format === 1) {
-    if (!Array.isArray(obj.projects) || obj.projects.length === 0) {
-      throw new Error('El respaldo no contiene proyectos.')
+    if (Array.isArray(obj.projects) && obj.projects.length > 0) {
+      return {
+        projects: (obj.projects as Project[]).map(normalizeProject),
+        activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
+      }
     }
-    return {
-      projects: (obj.projects as Project[]).map(normalizeProject),
-      activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
-    }
+    throw new Error('El respaldo no contiene proyectos.')
   }
 
   // Estado interno v1

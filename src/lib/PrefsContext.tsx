@@ -9,10 +9,13 @@ import {
 } from 'react'
 import {
   applyFontScale,
+  applyHighContrast,
   loadAlertPrefs,
   loadFontScale,
+  loadHighContrast,
   saveAlertPrefs,
   saveFontScale,
+  saveHighContrast,
   stepFontScale,
   type AlertPrefs,
   type FontScale,
@@ -23,6 +26,8 @@ type PrefsApi = {
   biggerText: () => void
   smallerText: () => void
   resetText: () => void
+  highContrast: boolean
+  toggleHighContrast: () => void
   alerts: AlertPrefs
   setAlertSound: (on: boolean) => void
   setAlertVibrate: (on: boolean) => void
@@ -32,12 +37,18 @@ const PrefsContext = createContext<PrefsApi | null>(null)
 
 export function PrefsProvider({ children }: { children: ReactNode }) {
   const [fontScale, setFontScale] = useState<FontScale>(() => loadFontScale())
+  const [highContrast, setHighContrast] = useState(() => loadHighContrast())
   const [alerts, setAlerts] = useState<AlertPrefs>(() => loadAlertPrefs())
 
   useEffect(() => {
     applyFontScale(fontScale)
     saveFontScale(fontScale)
   }, [fontScale])
+
+  useEffect(() => {
+    applyHighContrast(highContrast)
+    saveHighContrast(highContrast)
+  }, [highContrast])
 
   useEffect(() => {
     saveAlertPrefs(alerts)
@@ -55,6 +66,10 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     setFontScale(1)
   }, [])
 
+  const toggleHighContrast = useCallback(() => {
+    setHighContrast((v) => !v)
+  }, [])
+
   const setAlertSound = useCallback((on: boolean) => {
     setAlerts((a) => ({ ...a, sound: on }))
   }, [])
@@ -69,6 +84,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       biggerText,
       smallerText,
       resetText,
+      highContrast,
+      toggleHighContrast,
       alerts,
       setAlertSound,
       setAlertVibrate,
@@ -78,6 +95,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       biggerText,
       smallerText,
       resetText,
+      highContrast,
+      toggleHighContrast,
       alerts,
       setAlertSound,
       setAlertVibrate,

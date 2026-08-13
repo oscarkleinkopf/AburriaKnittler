@@ -48,6 +48,12 @@
   cursor: not-allowed;
 }
 
+.font-controls__btn--on {
+  background: var(--color-brand);
+  color: #f7fbf6;
+  border-color: var(--color-brand-deep);
+}
+
 .shell__brand {
   font-family: var(--font-display);
   font-size: 1.15rem;
@@ -564,10 +570,11 @@
   margin-top: var(--space-4);
 }
 
-.counter-mini-actions .big-button--primary {
-  grid-column: 1 / -1;
-  min-height: 4rem;
-  font-size: 1.25rem;
+.counter-mini-actions .big-button--primary,
+.counter-fs__btn--primary {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .history__list {

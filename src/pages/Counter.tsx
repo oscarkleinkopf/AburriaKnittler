@@ -12,6 +12,7 @@ import {
   sessionMsToday,
   totalSessionMs,
 } from '../lib/projects'
+import { useHoldRepeat } from '../lib/useHoldRepeat'
 
 function playMarkerBeep() {
   try {
@@ -59,6 +60,28 @@ export function CounterPage() {
   const vibeId = useId()
   const prevRows = useRef(active?.rows ?? 0)
 
+  function triggerBump() {
+    setBump(false)
+    window.requestAnimationFrame(() => {
+      setBump(true)
+      if (bumpTimer.current) window.clearTimeout(bumpTimer.current)
+      bumpTimer.current = window.setTimeout(() => setBump(false), 280)
+    })
+  }
+
+  const rowHold = useHoldRepeat({
+    onStep: (n) => {
+      bumpRows(n)
+      triggerBump()
+    },
+  })
+  const stitchHold = useHoldRepeat({
+    onStep: (n) => {
+      bumpStitches(n)
+      triggerBump()
+    },
+  })
+
   useEffect(() => {
     markOpened()
   }, [active?.id, markOpened])
@@ -105,15 +128,6 @@ export function CounterPage() {
     }
   }, [fullscreen])
 
-  function triggerBump() {
-    setBump(false)
-    window.requestAnimationFrame(() => {
-      setBump(true)
-      if (bumpTimer.current) window.clearTimeout(bumpTimer.current)
-      bumpTimer.current = window.setTimeout(() => setBump(false), 280)
-    })
-  }
-
   if (!active) {
     return (
       <section className="stack animate-enter">
@@ -137,8 +151,8 @@ export function CounterPage() {
             Contador
           </h1>
           <p className="page-lead">
-            Proyecto: <strong>{active.name}</strong>. Vueltas y puntos se
-            guardan solos, también sin conexión.
+            Proyecto: <strong>{active.name}</strong>. Un toque suma 1; mantén
+            pulsado para +5 y luego +10.
           </p>
         </div>
 
@@ -216,11 +230,8 @@ export function CounterPage() {
             <div className="counter-mini-actions">
               <BigButton
                 variant="primary"
-                onClick={() => {
-                  bumpRows(1)
-                  triggerBump()
-                }}
-                aria-label="Sumar una vuelta"
+                aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
+                {...rowHold}
               >
                 +1 vuelta
               </BigButton>
@@ -253,11 +264,8 @@ export function CounterPage() {
             <div className="counter-mini-actions">
               <BigButton
                 variant="secondary"
-                onClick={() => {
-                  bumpStitches(1)
-                  triggerBump()
-                }}
-                aria-label="Sumar un punto"
+                aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
+                {...stitchHold}
               >
                 +1 punto
               </BigButton>
@@ -387,10 +395,8 @@ export function CounterPage() {
                 <button
                   type="button"
                   className="counter-fs__btn counter-fs__btn--primary"
-                  onClick={() => {
-                    bumpRows(1)
-                    triggerBump()
-                  }}
+                  aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
+                  {...rowHold}
                 >
                   +1 vuelta
                 </button>
@@ -419,10 +425,8 @@ export function CounterPage() {
                 <button
                   type="button"
                   className="counter-fs__btn counter-fs__btn--primary"
-                  onClick={() => {
-                    bumpStitches(1)
-                    triggerBump()
-                  }}
+                  aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
+                  {...stitchHold}
                 >
                   +1 punto
                 </button>

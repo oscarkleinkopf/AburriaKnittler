@@ -8,6 +8,7 @@ import {
   downloadBackup,
   formatRelativeDate,
   readBackupFile,
+  shareProject,
   type ImportMode,
 } from '../lib/projects'
 
@@ -87,6 +88,24 @@ export function ProjectsPage() {
     } catch {
       setMessage(null)
       setError('No se pudo crear el archivo de respaldo.')
+    }
+  }
+
+  async function onShareProject(projectId: string) {
+    const project = state.projects.find((p) => p.id === projectId)
+    if (!project) return
+    try {
+      const mode = await shareProject(project)
+      setError(null)
+      setMessage(
+        mode === 'shared'
+          ? `«${project.name}» listo para compartir.`
+          : `Descargado «${project.name}» (.json).`,
+      )
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      setMessage(null)
+      setError('No se pudo compartir el proyecto.')
     }
   }
 
@@ -197,6 +216,13 @@ export function ProjectsPage() {
             <BigButton to="/contador" variant="primary">
               Abrir contador
             </BigButton>
+            <BigButton
+              type="button"
+              variant="secondary"
+              onClick={() => void onShareProject(active.id)}
+            >
+              Compartir
+            </BigButton>
             <label className="file-button">
               <input
                 type="file"
@@ -205,7 +231,7 @@ export function ProjectsPage() {
                 className="file-pick__input"
                 onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
               />
-              <span className="big-button big-button--secondary">
+              <span className="big-button big-button--ghost">
                 {active.photoDataUrl ? 'Cambiar foto' : 'Añadir foto'}
               </span>
             </label>
@@ -340,6 +366,13 @@ export function ProjectsPage() {
                       onClick={() => startEdit(p.id)}
                     >
                       Editar
+                    </BigButton>
+                    <BigButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => void onShareProject(p.id)}
+                    >
+                      Compartir
                     </BigButton>
                     <BigButton
                       type="button"

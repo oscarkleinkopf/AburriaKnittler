@@ -1,5 +1,6 @@
 const FONT_KEY = 'aburriaknittler.fontScale'
 const ALERTS_KEY = 'aburriaknittler.alertPrefs'
+const CONTRAST_KEY = 'aburriaknittler.highContrast'
 
 export const FONT_STEPS = [0.9, 1, 1.15, 1.3, 1.5] as const
 export type FontScale = (typeof FONT_STEPS)[number]
@@ -48,6 +49,26 @@ export function stepFontScale(
     Math.max(0, (idx < 0 ? 1 : idx) + direction),
   )
   return FONT_STEPS[next]
+}
+
+export function loadHighContrast(): boolean {
+  try {
+    return localStorage.getItem(CONTRAST_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function saveHighContrast(on: boolean): void {
+  try {
+    localStorage.setItem(CONTRAST_KEY, on ? '1' : '0')
+  } catch {
+    // ignore
+  }
+}
+
+export function applyHighContrast(on: boolean): void {
+  document.documentElement.dataset.contrast = on ? 'high' : 'default'
 }
 
 export function loadAlertPrefs(): AlertPrefs {
