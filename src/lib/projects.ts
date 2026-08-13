@@ -6,6 +6,21 @@ export type HistoryEntry = {
   stitches: number
 }
 
+export type PatternStep = {
+  id: string
+  /** Fila del patrón a la que aplica la instrucción */
+  row: number
+  instruction: string
+  done: boolean
+}
+
+export type KnitSession = {
+  id: string
+  startedAt: string
+  endedAt: string
+  durationMs: number
+}
+
 export type Project = {
   id: string
   name: string
@@ -19,6 +34,12 @@ export type Project = {
   markerEvery: number
   history: HistoryEntry[]
   lastAnalysis: AnalyzeResult | null
+  patternSteps: PatternStep[]
+  sessions: KnitSession[]
+  /** ISO si hay un temporizador en curso */
+  timerStartedAt: string | null
+  /** Última vez que se abrió el proyecto (retomar) */
+  lastOpenedAt: string | null
 }
 
 export type ProjectsState = {
@@ -30,6 +51,8 @@ export type ProjectsState = {
 const STORAGE_KEY = 'aburriaknittler.projects.v1'
 const LEGACY_ROW_KEY = 'aburriaknittler.rowCount'
 const MAX_HISTORY = 40
+const MAX_SESSIONS = 80
+const MAX_PATTERN_STEPS = 200
 
 export function createId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -52,6 +75,10 @@ export function createProject(name: string, notes = ''): Project {
     markerEvery: 0,
     history: [],
     lastAnalysis: null,
+    patternSteps: [],
+    sessions: [],
+    timerStartedAt: null,
+    lastOpenedAt: now,
   }
 }
 
@@ -106,6 +133,24 @@ export function loadState(): ProjectsState {
   }
 }
 
+function normalizePatternStep(s: PatternStep): PatternStep {
+  return {
+    id: s.id || createId(),
+    row: Math.max(0, Math.round(Number(s.row) || 0)),
+    instruction: String(s.instruction ?? '').trim() || 'Sin instrucción',
+    done: Boolean(s.done),
+  }
+}
+
+function normalizeSession(s: KnitSession): KnitSession {
+  return {
+    id: s.id || createId(),
+    startedAt: s.startedAt || new Date().toISOString(),
+    endedAt: s.endedAt || new Date().toISOString(),
+    durationMs: Math.max(0, Number(s.durationMs) || 0),
+  }
+}
+
 function normalizeProject(p: Project): Project {
   return {
     id: p.id || createId(),
@@ -119,7 +164,82 @@ function normalizeProject(p: Project): Project {
     markerEvery: Math.max(0, Number(p.markerEvery) || 0),
     history: Array.isArray(p.history) ? p.history.slice(0, MAX_HISTORY) : [],
     lastAnalysis: p.lastAnalysis ?? null,
+    patternSteps: Array.isArray(p.patternSteps)
+      ? p.patternSteps.map(normalizePatternStep).slice(0, MAX_PATTERN_STEPS)
+      : [],
+    sessions: Array.isArray(p.sessions)
+      ? p.sessions.map(normalizeSession).slice(0, MAX_SESSIONS)
+      : [],
+    timerStartedAt:
+      typeof p.timerStartedAt === 'string' && p.timerStartedAt
+        ? p.timerStartedAt
+        : null,
+    lastOpenedAt:
+      typeof p.lastOpenedAt === 'string' && p.lastOpenedAt
+        ? p.lastOpenedAt
+        : p.updatedAt || null,
   }
+}
+
+export function totalSessionMs(project: Project): number {
+  const closed = project.sessions.reduce((sum, s) => sum + s.durationMs, 0)
+  if (!project.timerStartedAt) return closed
+  const started = Date.parse(project.timerStartedAt)
+  if (!Number.isFinite(started)) return closed
+  return closed + Math.max(0, Date.now() - started)
+}
+
+export function sessionMsToday(project: Project, now = new Date()): number {
+  const startOfDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime()
+  let total = 0
+  for (const s of project.sessions) {
+    const end = Date.parse(s.endedAt)
+    if (!Number.isFinite(end) || end < startOfDay) continue
+    const start = Date.parse(s.startedAt)
+    if (!Number.isFinite(start)) {
+      total += s.durationMs
+      continue
+    }
+    const overlapStart = Math.max(start, startOfDay)
+    total += Math.max(0, end - overlapStart)
+  }
+  if (project.timerStartedAt) {
+    const started = Date.parse(project.timerStartedAt)
+    if (Number.isFinite(started)) {
+      const overlapStart = Math.max(started, startOfDay)
+      total += Math.max(0, Date.now() - overlapStart)
+    }
+  }
+  return total
+}
+
+export function formatDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) {
+    return `${h}h ${String(m).padStart(2, '0')}m`
+  }
+  if (m > 0) {
+    return `${m}m ${String(s).padStart(2, '0')}s`
+  }
+  return `${s}s`
+}
+
+export function currentPatternStep(
+  project: Project,
+): PatternStep | null {
+  const pending = project.patternSteps
+    .filter((s) => !s.done)
+    .sort((a, b) => a.row - b.row || a.instruction.localeCompare(b.instruction))
+  if (pending.length === 0) return null
+  const forCurrentRow = pending.find((s) => s.row === project.rows)
+  return forCurrentRow ?? pending[0]
 }
 
 export type BackupFile = {

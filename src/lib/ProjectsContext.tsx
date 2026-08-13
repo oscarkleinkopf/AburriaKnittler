@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { AnalyzeResult } from './analyze'
 import {
+  createId,
   createProject,
   loadState,
   parseBackupJson,
@@ -16,6 +17,7 @@ import {
   touch,
   type ImportMode,
   type ImportResult,
+  type PatternStep,
   type Project,
   type ProjectsState,
 } from './projects'
@@ -35,6 +37,12 @@ type ProjectsApi = {
   setPhoto: (dataUrl: string | null) => void
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
+  markOpened: () => void
+  addPatternStep: (row: number, instruction: string) => void
+  togglePatternStep: (stepId: string) => void
+  removePatternStep: (stepId: string) => void
+  startTimer: () => void
+  stopTimer: () => void
 }
 
 let memory = loadState()
@@ -86,7 +94,14 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const setActive = useCallback((id: string) => {
     if (!memory.projects.some((p) => p.id === id)) return
-    memory = { ...memory, activeId: id }
+    const now = new Date().toISOString()
+    memory = {
+      ...memory,
+      activeId: id,
+      projects: memory.projects.map((p) =>
+        p.id === id ? touch({ ...p, lastOpenedAt: now }) : p,
+      ),
+    }
     emit()
   }, [])
 
@@ -123,7 +138,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const bumpRows = useCallback((delta: number) => {
     patchActive((p) => {
       const rows = Math.max(0, p.rows + delta)
-      return { ...p, rows, stitches: delta !== 0 && rows !== p.rows ? 0 : p.stitches }
+      return {
+        ...p,
+        rows,
+        stitches: delta !== 0 && rows !== p.rows ? 0 : p.stitches,
+      }
     }, true)
   }, [])
 
@@ -162,6 +181,75 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return result
   }, [])
 
+  const markOpened = useCallback(() => {
+    patchActive((p) => ({
+      ...p,
+      lastOpenedAt: new Date().toISOString(),
+    }))
+  }, [])
+
+  const addPatternStep = useCallback((row: number, instruction: string) => {
+    const text = instruction.trim()
+    if (!text) return
+    const step: PatternStep = {
+      id: createId(),
+      row: Math.max(0, Math.round(row)),
+      instruction: text,
+      done: false,
+    }
+    patchActive((p) => ({
+      ...p,
+      patternSteps: [...p.patternSteps, step],
+    }))
+  }, [])
+
+  const togglePatternStep = useCallback((stepId: string) => {
+    patchActive((p) => ({
+      ...p,
+      patternSteps: p.patternSteps.map((s) =>
+        s.id === stepId ? { ...s, done: !s.done } : s,
+      ),
+    }))
+  }, [])
+
+  const removePatternStep = useCallback((stepId: string) => {
+    patchActive((p) => ({
+      ...p,
+      patternSteps: p.patternSteps.filter((s) => s.id !== stepId),
+    }))
+  }, [])
+
+  const startTimer = useCallback(() => {
+    patchActive((p) => {
+      if (p.timerStartedAt) return p
+      return { ...p, timerStartedAt: new Date().toISOString() }
+    })
+  }, [])
+
+  const stopTimer = useCallback(() => {
+    patchActive((p) => {
+      if (!p.timerStartedAt) return p
+      const started = Date.parse(p.timerStartedAt)
+      const endedAt = new Date().toISOString()
+      const durationMs = Number.isFinite(started)
+        ? Math.max(0, Date.now() - started)
+        : 0
+      return {
+        ...p,
+        timerStartedAt: null,
+        sessions: [
+          {
+            id: createId(),
+            startedAt: p.timerStartedAt,
+            endedAt,
+            durationMs,
+          },
+          ...p.sessions,
+        ].slice(0, 80),
+      }
+    })
+  }, [])
+
   const api = useMemo<ProjectsApi>(
     () => ({
       state,
@@ -178,6 +266,12 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       replaceState,
       importBackup,
+      markOpened,
+      addPatternStep,
+      togglePatternStep,
+      removePatternStep,
+      startTimer,
+      stopTimer,
     }),
     [
       state,
@@ -194,6 +288,12 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       replaceState,
       importBackup,
+      markOpened,
+      addPatternStep,
+      togglePatternStep,
+      removePatternStep,
+      startTimer,
+      stopTimer,
     ],
   )
 

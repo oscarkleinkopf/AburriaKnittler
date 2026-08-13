@@ -12,6 +12,7 @@ export function AppShell() {
           <FontSizeControls />
           <nav className="shell__nav" aria-label="Principal">
             <NavLink to="/proyectos">Proyectos</NavLink>
+            <NavLink to="/patron">Patrón</NavLink>
             <NavLink to="/analizar">Analizar</NavLink>
             <NavLink to="/contador">Contador</NavLink>
           </nav>

@@ -5,7 +5,13 @@ import { BigButton } from '../components/BigButton'
 import { usePrefs } from '../lib/PrefsContext'
 import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
-import { formatRelativeDate } from '../lib/projects'
+import {
+  currentPatternStep,
+  formatDuration,
+  formatRelativeDate,
+  sessionMsToday,
+  totalSessionMs,
+} from '../lib/projects'
 
 function playMarkerBeep() {
   try {
@@ -38,16 +44,30 @@ export function CounterPage() {
     bumpStitches,
     resetCounters,
     setMarkerEvery,
+    startTimer,
+    stopTimer,
+    markOpened,
   } = useProjects()
   const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
   const [bump, setBump] = useState(false)
   const [markerHit, setMarkerHit] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const bumpTimer = useRef<number | null>(null)
   const markerId = useId()
   const soundId = useId()
   const vibeId = useId()
   const prevRows = useRef(active?.rows ?? 0)
+
+  useEffect(() => {
+    markOpened()
+  }, [active?.id, markOpened])
+
+  useEffect(() => {
+    if (!active?.timerStartedAt) return
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [active?.timerStartedAt])
 
   useEffect(() => {
     prevRows.current = active?.rows ?? 0
@@ -128,6 +148,57 @@ export function CounterPage() {
             {active.markerEvery}).
           </Banner>
         )}
+
+        {(() => {
+          const step = currentPatternStep(active)
+          if (!step) return null
+          return (
+            <Banner tone="info">
+              Patrón — fila {step.row}: {step.instruction}{' '}
+              <Link to="/patron">Ver patrón</Link>
+            </Banner>
+          )
+        })()}
+
+        <div className="timer-panel">
+          <h2 className="section-title">Sesión de tejido</h2>
+          <p className="timer-panel__time" aria-live="polite">
+            {active.timerStartedAt
+              ? formatDuration(
+                  Math.max(
+                    0,
+                    now - Date.parse(active.timerStartedAt),
+                  ),
+                )
+              : '0s'}
+            {active.timerStartedAt ? ' · en curso' : ' · parado'}
+          </p>
+          <p className="muted">
+            Hoy {formatDuration(sessionMsToday(active))} · total{' '}
+            {formatDuration(totalSessionMs(active))}
+          </p>
+          <div className="row-actions">
+            {!active.timerStartedAt ? (
+              <BigButton type="button" variant="primary" onClick={startTimer}>
+                Empezar tiempo
+              </BigButton>
+            ) : (
+              <BigButton type="button" variant="secondary" onClick={stopTimer}>
+                Pausar / guardar
+              </BigButton>
+            )}
+          </div>
+          {active.sessions.length > 0 && (
+            <ol className="history__list">
+              {active.sessions.slice(0, 5).map((s) => (
+                <li key={s.id}>
+                  <span>{formatRelativeDate(s.endedAt)}</span>
+                  <span>{formatDuration(s.durationMs)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
 
         <div className="counter-grid">
           <div className="counter-display">
@@ -282,9 +353,12 @@ export function CounterPage() {
           )}
         </div>
 
-        <BigButton to="/proyectos" variant="secondary" block>
+      <BigButton to="/proyectos" variant="secondary" block>
           Cambiar de proyecto
-        </BigButton>
+      </BigButton>
+      <BigButton to="/patron" variant="ghost" block>
+          Patrón por filas
+      </BigButton>
       </section>
 
       {fullscreen && (

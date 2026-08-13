@@ -758,3 +758,74 @@
   display: grid;
   gap: var(--space-2);
 }
+
+.resume-card {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 36rem;
+}
+
+.timer-panel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 2px solid rgba(47, 93, 74, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.timer-panel__time {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  color: var(--color-brand-deep);
+}
+
+.pattern-next {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 2px solid var(--color-brand);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.pattern-next__row {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--color-brand-deep);
+}
+
+.pattern-next__text {
+  font-size: 1.15rem;
+}
+
+.pattern-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.pattern-item {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid rgba(47, 93, 74, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.pattern-item--done {
+  opacity: 0.72;
+}
+
+.pattern-item--done .pattern-item__text {
+  text-decoration: line-through;
+}
+
+.pattern-item__row {
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+.pattern-item__text {
+  color: var(--color-ink);
+}
