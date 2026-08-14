@@ -227,12 +227,11 @@ export function ProjectsPage() {
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="file-pick__input"
                 onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
               />
               <span className="big-button big-button--ghost">
-                {active.photoDataUrl ? 'Cambiar foto' : 'Añadir foto'}
+                {active.photoDataUrl ? 'Cambiar imagen' : 'Añadir imagen'}
               </span>
             </label>
           </div>

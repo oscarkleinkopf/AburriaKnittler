@@ -261,8 +261,9 @@ export function AnalyzePage() {
             </>
           ) : (
             <>
-              Sube una foto o escribe el conteo a mano.{' '}
-              <Link to="/proyectos">Crea un proyecto</Link> para guardarlo.
+              Sube una imagen (galería, archivos o cámara) o escribe el conteo a
+              mano. <Link to="/proyectos">Crea un proyecto</Link> para
+              guardarlo.
             </>
           )}
         </p>
@@ -285,7 +286,7 @@ export function AnalyzePage() {
 
       <div className="file-pick">
         <label htmlFor={inputId} className="sr-only">
-          Elegir foto del tejido
+          Elegir imagen del tejido (galería, archivos o cámara)
         </label>
         <input
           id={inputId}
@@ -293,7 +294,6 @@ export function AnalyzePage() {
           className="file-pick__input"
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
         />
         <BigButton
@@ -302,7 +302,7 @@ export function AnalyzePage() {
           onClick={() => inputRef.current?.click()}
           disabled={prepBusy || status === 'loading'}
         >
-          {file || prep ? 'Cambiar foto' : 'Elegir foto'}
+          {file || prep ? 'Cambiar imagen' : 'Elegir imagen'}
         </BigButton>
       </div>
 
