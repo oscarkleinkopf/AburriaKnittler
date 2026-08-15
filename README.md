@@ -85,7 +85,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 9. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; voz alta
 10. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
 11. **Accesible** — botones grandes, A−/A+, alto contraste
-12. **PWA** — instalable; shell + contador sin red
+12. **PWA** — instalable; guía «Añadir a inicio» en la home
 
 ## Scripts
 
@@ -94,4 +94,5 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 | `npm run dev` | Desarrollo (base `/`) |
 | `npm run build:pages` | Build con base `/AburriaKnittler/` + `404.html` |
 | `npm run preview` | Vista previa del build |
+| `npm run test` | Tests del respaldo, patrón y tamaño de letra |
 | `npm run lint` | Lint |

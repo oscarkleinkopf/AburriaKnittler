@@ -111,7 +111,8 @@ html[data-contrast='high'] .backup-panel,
 html[data-contrast='high'] .timer-panel,
 html[data-contrast='high'] .image-prep,
 html[data-contrast='high'] .pattern-item,
-html[data-contrast='high'] .pattern-next {
+html[data-contrast='high'] .pattern-next,
+html[data-contrast='high'] .install-hint {
   background: #ffffff;
   border-color: #000000;
 }

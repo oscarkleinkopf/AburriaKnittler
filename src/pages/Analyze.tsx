@@ -271,9 +271,8 @@ export function AnalyzePage() {
 
       {!gemini && (
         <Banner tone="info">
-          Modo local: sin clave Gemini la estimación es orientativa en el
-          dispositivo. Para IA real, añade el secreto{' '}
-          <code>VITE_GEMINI_API_KEY</code> en GitHub Actions.
+          Estimación en el dispositivo (sin conexión a un modelo de IA). Puedes
+          corregir puntos y filas a mano y guardarlas en el proyecto.
         </Banner>
       )}
 

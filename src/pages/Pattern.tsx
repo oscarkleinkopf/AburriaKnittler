@@ -120,7 +120,10 @@ export function PatternPage() {
       <div className="stack">
         <h2 className="section-title">Instrucciones</h2>
         {sorted.length === 0 ? (
-          <p className="muted">Aún no hay pasos en este patrón.</p>
+          <p className="muted">
+            Aún no hay pasos. Añade algo como «fila 12: 2 juntos, lazada» y
+            márcalo cuando lo tejas.
+          </p>
         ) : (
           <ul className="pattern-list">
             {sorted.map((step) => (

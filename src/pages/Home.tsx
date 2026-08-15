@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BigButton } from '../components/BigButton'
 import { Banner } from '../components/Banner'
+import { InstallHint } from '../components/InstallHint'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   currentPatternStep,
@@ -29,8 +30,8 @@ export function HomePage() {
           AburriaKnittler
         </h1>
         <p className="hero__lead">
-          Estima puntos y filas desde una foto, y lleva tus vueltas sin perder
-          el hilo.
+          Estima puntos y filas desde una imagen, y lleva tus vueltas sin
+          perder el hilo.
         </p>
 
         {showResume && active && (
@@ -44,8 +45,8 @@ export function HomePage() {
                 : ''}
               {nextStep
                 ? ` Siguiente del patrón — fila ${nextStep.row}: ${nextStep.instruction}`
-                : ''}
-              {' '}Hoy {formatDuration(sessionMsToday(active))} · total{' '}
+                : ''}{' '}
+              Hoy {formatDuration(sessionMsToday(active))} · total{' '}
               {formatDuration(totalSessionMs(active))}.
             </Banner>
             <div className="hero__actions">
@@ -60,12 +61,30 @@ export function HomePage() {
         )}
 
         {!showResume && (
+          <>
+            <ol className="how-list">
+              <li>Crea o elige un proyecto.</li>
+              <li>Sube una imagen o anota el patrón por filas.</li>
+              <li>Cuenta vueltas; el avance se guarda en este aparato.</li>
+            </ol>
+            <div className="hero__actions">
+              <BigButton to="/analizar" variant="primary">
+                Analizar imagen
+              </BigButton>
+              <BigButton to="/contador" variant="secondary">
+                Contador
+              </BigButton>
+              <BigButton to="/proyectos" variant="ghost">
+                Proyectos
+              </BigButton>
+            </div>
+          </>
+        )}
+
+        {showResume && (
           <div className="hero__actions">
-            <BigButton to="/analizar" variant="primary">
-              Analizar foto
-            </BigButton>
-            <BigButton to="/contador" variant="secondary">
-              Contador
+            <BigButton to="/analizar" variant="ghost">
+              Analizar imagen
             </BigButton>
             <BigButton to="/proyectos" variant="ghost">
               Proyectos
@@ -73,16 +92,7 @@ export function HomePage() {
           </div>
         )}
 
-        {showResume && (
-          <div className="hero__actions">
-            <BigButton to="/analizar" variant="ghost">
-              Analizar foto
-            </BigButton>
-            <BigButton to="/proyectos" variant="ghost">
-              Proyectos
-            </BigButton>
-          </div>
-        )}
+        <InstallHint />
       </div>
       <img
         className="hero__visual"
