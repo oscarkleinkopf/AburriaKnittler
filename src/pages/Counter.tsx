@@ -7,10 +7,13 @@ import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
 import {
   currentPatternStep,
+  formatClock,
   formatDuration,
   formatRelativeDate,
+  groupSessionsByDay,
   sessionMsToday,
   totalSessionMs,
+  type KnitSession,
 } from '../lib/projects'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
 
@@ -38,6 +41,57 @@ function playMarkerBeep() {
   }
 }
 
+const SESSION_PREVIEW = 8
+
+function SessionHistory({
+  sessions,
+  showAll,
+  onToggle,
+}: {
+  sessions: KnitSession[]
+  showAll: boolean
+  onToggle: () => void
+}) {
+  const visible = showAll ? sessions : sessions.slice(0, SESSION_PREVIEW)
+  const groups = groupSessionsByDay(visible)
+  const hidden = Math.max(0, sessions.length - SESSION_PREVIEW)
+
+  return (
+    <div className="session-history">
+      {groups.map((group) => (
+        <section key={group.dayKey} className="session-day">
+          <h3 className="session-day__head">
+            <span>{group.label}</span>
+            <span>{formatDuration(group.totalMs)}</span>
+          </h3>
+          <ol className="session-day__list">
+            {group.sessions.map((s) => (
+              <li key={s.id}>
+                <span>
+                  {formatClock(s.startedAt)}–{formatClock(s.endedAt)}
+                </span>
+                <span>{formatDuration(s.durationMs)}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+      {hidden > 0 && (
+        <BigButton
+          type="button"
+          variant="ghost"
+          className="session-history__more"
+          onClick={onToggle}
+        >
+          {showAll
+            ? 'Ver menos'
+            : `Ver todas (${hidden} más)`}
+        </BigButton>
+      )}
+    </div>
+  )
+}
+
 export function CounterPage() {
   const {
     active,
@@ -54,6 +108,7 @@ export function CounterPage() {
   const [markerHit, setMarkerHit] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const bumpTimer = useRef<number | null>(null)
   const markerId = useId()
   const soundId = useId()
@@ -75,7 +130,25 @@ export function CounterPage() {
       triggerBump()
     },
   })
+  const rowHoldDown = useHoldRepeat({
+    tapAmount: -1,
+    holdAmount: -5,
+    repeatAmount: -10,
+    onStep: (n) => {
+      bumpRows(n)
+      triggerBump()
+    },
+  })
   const stitchHold = useHoldRepeat({
+    onStep: (n) => {
+      bumpStitches(n)
+      triggerBump()
+    },
+  })
+  const stitchHoldDown = useHoldRepeat({
+    tapAmount: -1,
+    holdAmount: -5,
+    repeatAmount: -10,
     onStep: (n) => {
       bumpStitches(n)
       triggerBump()
@@ -151,8 +224,8 @@ export function CounterPage() {
             Contador
           </h1>
           <p className="page-lead">
-            Proyecto: <strong>{active.name}</strong>. Un toque suma 1; mantén
-            pulsado para +5 y luego +10.
+            Proyecto: <strong>{active.name}</strong>. Un toque suma o resta 1;
+            mantén pulsado para ±5 y luego ±10.
           </p>
         </div>
 
@@ -203,14 +276,11 @@ export function CounterPage() {
             )}
           </div>
           {active.sessions.length > 0 && (
-            <ol className="history__list">
-              {active.sessions.slice(0, 5).map((s) => (
-                <li key={s.id}>
-                  <span>{formatRelativeDate(s.endedAt)}</span>
-                  <span>{formatDuration(s.durationMs)}</span>
-                </li>
-              ))}
-            </ol>
+            <SessionHistory
+              sessions={active.sessions}
+              showAll={showAllSessions}
+              onToggle={() => setShowAllSessions((v) => !v)}
+            />
           )}
         </div>
 
@@ -237,12 +307,9 @@ export function CounterPage() {
               </BigButton>
               <BigButton
                 variant="secondary"
-                onClick={() => {
-                  bumpRows(-1)
-                  triggerBump()
-                }}
-                aria-label="Restar una vuelta"
+                aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
                 disabled={active.rows === 0}
+                {...rowHoldDown}
               >
                 −1
               </BigButton>
@@ -271,12 +338,9 @@ export function CounterPage() {
               </BigButton>
               <BigButton
                 variant="ghost"
-                onClick={() => {
-                  bumpStitches(-1)
-                  triggerBump()
-                }}
-                aria-label="Restar un punto"
+                aria-label="Restar puntos. Mantén pulsado para restar más rápido"
                 disabled={active.stitches === 0}
+                {...stitchHoldDown}
               >
                 −1
               </BigButton>
@@ -403,11 +467,9 @@ export function CounterPage() {
                 <button
                   type="button"
                   className="counter-fs__btn"
-                  onClick={() => {
-                    bumpRows(-1)
-                    triggerBump()
-                  }}
+                  aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
                   disabled={active.rows === 0}
+                  {...rowHoldDown}
                 >
                   −1
                 </button>
@@ -433,11 +495,9 @@ export function CounterPage() {
                 <button
                   type="button"
                   className="counter-fs__btn"
-                  onClick={() => {
-                    bumpStitches(-1)
-                    triggerBump()
-                  }}
+                  aria-label="Restar puntos. Mantén pulsado para restar más rápido"
                   disabled={active.stitches === 0}
+                  {...stitchHoldDown}
                 >
                   −1
                 </button>

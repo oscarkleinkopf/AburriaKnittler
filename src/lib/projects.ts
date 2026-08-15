@@ -570,3 +570,75 @@ export function formatRelativeDate(iso: string): string {
     }) + ` ${time}`
   )
 }
+
+export function formatClock(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('es', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function localDayKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export type SessionDayGroup = {
+  dayKey: string
+  label: string
+  sessions: KnitSession[]
+  totalMs: number
+}
+
+/** Agrupa sesiones por día local (más reciente primero). */
+export function groupSessionsByDay(
+  sessions: KnitSession[],
+  now = new Date(),
+): SessionDayGroup[] {
+  const today = localDayKey(now)
+  const yesterdayDate = new Date(now)
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterday = localDayKey(yesterdayDate)
+
+  const map = new Map<string, KnitSession[]>()
+  for (const s of sessions) {
+    const ended = new Date(s.endedAt)
+    const key = Number.isNaN(ended.getTime()) ? 'unknown' : localDayKey(ended)
+    const list = map.get(key)
+    if (list) list.push(s)
+    else map.set(key, [s])
+  }
+
+  const keys = [...map.keys()].sort((a, b) => {
+    if (a === 'unknown') return 1
+    if (b === 'unknown') return -1
+    return b.localeCompare(a)
+  })
+
+  return keys.map((dayKey) => {
+    const list = map.get(dayKey) ?? []
+    let label = dayKey
+    if (dayKey === today) label = 'Hoy'
+    else if (dayKey === yesterday) label = 'Ayer'
+    else if (dayKey !== 'unknown') {
+      const d = new Date(`${dayKey}T12:00:00`)
+      label = d.toLocaleDateString('es', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      })
+    } else {
+      label = 'Sin fecha'
+    }
+    return {
+      dayKey,
+      label,
+      sessions: list,
+      totalMs: list.reduce((sum, s) => sum + s.durationMs, 0),
+    }
+  })
+}

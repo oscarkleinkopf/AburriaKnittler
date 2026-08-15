@@ -77,15 +77,16 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 1. **Proyectos** — varios tejidos con nombre, notas, foto, contador y análisis
 2. **Respaldo** — exportar / importar todos los proyectos en JSON
 3. **Patrón por filas** — instrucciones por fila y marcar hechas
-4. **Sesiones** — temporizador, tiempo de hoy y total por proyecto
+4. **Sesiones** — temporizador, tiempo de hoy/total, historial por día (inicio–fin)
 5. **Retomar** — al abrir, recuerda la vuelta y el siguiente paso
 6. **Alto contraste** — botón Contraste en la cabecera
-7. **Atajos del contador** — mantener pulsado: +5 y luego +10
-8. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
-9. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; voz alta
-10. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
-11. **Accesible** — botones grandes, A−/A+, alto contraste
-12. **PWA** — instalable; guía «Añadir a inicio» en la home
+7. **Modo oscuro** — botón Oscuro/Claro; se recuerda en el dispositivo
+8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10
+9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
+10. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; voz alta
+11. **Contador** — vueltas + puntos, marcador con sonido/vibración, pantalla completa
+12. **Accesible** — botones grandes, A−/A+, alto contraste, modo oscuro
+13. **PWA** — instalable; guía «Añadir a inicio» en la home
 
 ## Scripts
 

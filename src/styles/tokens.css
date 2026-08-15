@@ -11,6 +11,16 @@
   --color-accent-soft: #f3d9c8;
   --color-danger: #9b2c2c;
   --color-focus: #1a6b4a;
+  --color-on-brand: #f7fbf6;
+  --color-panel: rgba(255, 255, 255, 0.62);
+  --color-header: rgba(243, 246, 241, 0.88);
+  --color-line: rgba(47, 93, 74, 0.18);
+  --color-line-strong: rgba(47, 93, 74, 0.28);
+  --color-warn-ink: #6b3414;
+  --color-error-bg: #fde8e8;
+  --color-glow-a: #d7e6d8;
+  --color-glow-b: #cfe0d4;
+  --color-input: #ffffff;
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "Source Sans 3", "Segoe UI", sans-serif;
   --font-scale: 1;
@@ -35,6 +45,11 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 body {
@@ -45,8 +60,8 @@ body {
   line-height: 1.5;
   color: var(--color-ink);
   background:
-    radial-gradient(ellipse 120% 80% at 10% -10%, #d7e6d8 0%, transparent 55%),
-    radial-gradient(ellipse 90% 70% at 100% 0%, #cfe0d4 0%, transparent 50%),
+    radial-gradient(ellipse 120% 80% at 10% -10%, var(--color-glow-a) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 70% at 100% 0%, var(--color-glow-b) 0%, transparent 50%),
     linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-deep) 100%);
   background-attachment: fixed;
 }
@@ -94,10 +109,74 @@ html[data-contrast='high'] {
   --color-accent-soft: #eeeeee;
   --color-danger: #7a0000;
   --color-focus: #000000;
+  --color-on-brand: #ffffff;
+  --color-panel: #ffffff;
+  --color-header: #ffffff;
+  --color-line: #000000;
+  --color-line-strong: #000000;
+  --color-warn-ink: #000000;
+  --color-error-bg: #ffffff;
+  --color-glow-a: #ffffff;
+  --color-glow-b: #ffffff;
+  --color-input: #ffffff;
+}
+
+/* Evening knit: same forest/wool, inverted */
+html[data-theme='dark'] {
+  --color-bg: #1a2420;
+  --color-bg-deep: #121916;
+  --color-surface: #24302bcc;
+  --color-ink: #f3f6f1;
+  --color-ink-muted: #c5d4cc;
+  --color-brand: #8fbc9f;
+  --color-brand-deep: #c5e0d0;
+  --color-brand-soft: #3d5a4c;
+  --color-accent: #e8a07a;
+  --color-accent-soft: #4a3228;
+  --color-danger: #f0a0a0;
+  --color-focus: #8fbc9f;
+  --color-on-brand: #121916;
+  --color-panel: rgba(36, 48, 43, 0.88);
+  --color-header: rgba(18, 25, 22, 0.92);
+  --color-line: rgba(143, 188, 159, 0.28);
+  --color-line-strong: rgba(143, 188, 159, 0.42);
+  --color-warn-ink: #f3d9c8;
+  --color-error-bg: #3a2222;
+  --color-glow-a: #24382f;
+  --color-glow-b: #1e2c26;
+  --color-input: #1e2a25;
+  --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Dark + high contrast: white on black wins */
+html[data-theme='dark'][data-contrast='high'] {
+  --color-bg: #000000;
+  --color-bg-deep: #000000;
+  --color-surface: #000000;
+  --color-ink: #ffffff;
+  --color-ink-muted: #ffffff;
+  --color-brand: #ffffff;
+  --color-brand-deep: #ffffff;
+  --color-brand-soft: #333333;
+  --color-accent: #ffffff;
+  --color-accent-soft: #000000;
+  --color-danger: #ffffff;
+  --color-focus: #ffffff;
+  --color-on-brand: #000000;
+  --color-panel: #000000;
+  --color-header: #000000;
+  --color-line: #ffffff;
+  --color-line-strong: #ffffff;
+  --color-warn-ink: #ffffff;
+  --color-error-bg: #000000;
+  --color-glow-a: #000000;
+  --color-glow-b: #000000;
+  --color-input: #000000;
+  --shadow-soft: none;
 }
 
 html[data-contrast='high'] body {
-  background: #ffffff;
+  background: var(--color-bg);
 }
 
 html[data-contrast='high'] body::before {
@@ -113,32 +192,32 @@ html[data-contrast='high'] .image-prep,
 html[data-contrast='high'] .pattern-item,
 html[data-contrast='high'] .pattern-next,
 html[data-contrast='high'] .install-hint {
-  background: #ffffff;
-  border-color: #000000;
+  background: var(--color-panel);
+  border-color: var(--color-line);
 }
 
 html[data-contrast='high'] .big-button--primary {
-  background: #000000;
-  color: #ffffff;
-  border-color: #000000;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-color: var(--color-brand);
 }
 
 html[data-contrast='high'] .big-button--secondary,
 html[data-contrast='high'] .big-button--ghost {
-  background: #ffffff;
-  color: #000000;
-  border-color: #000000;
+  background: var(--color-input);
+  color: var(--color-ink);
+  border-color: var(--color-line);
 }
 
 html[data-contrast='high'] .banner--info,
 html[data-contrast='high'] .banner--warn {
-  background: #ffffff;
-  border-color: #000000;
-  color: #000000;
+  background: var(--color-panel);
+  border-color: var(--color-line);
+  color: var(--color-ink);
 }
 
 html[data-contrast='high'] .counter-fs {
-  background: #ffffff;
+  background: var(--color-bg);
 }
 
 h1,

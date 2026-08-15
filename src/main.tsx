@@ -5,13 +5,14 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import { PrefsProvider } from './lib/PrefsContext'
 import { ProjectsProvider } from './lib/ProjectsContext'
-import { applyFontScale, applyHighContrast, loadFontScale, loadHighContrast } from './lib/prefs'
+import { applyColorTheme, applyFontScale, applyHighContrast, loadColorTheme, loadFontScale, loadHighContrast } from './lib/prefs'
 import './styles/tokens.css'
 import './styles/app.css'
 
 registerSW({ immediate: true })
 applyFontScale(loadFontScale())
 applyHighContrast(loadHighContrast())
+applyColorTheme(loadColorTheme())
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
 

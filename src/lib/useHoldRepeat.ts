@@ -2,6 +2,8 @@ import { useCallback, useRef, type PointerEvent, type SyntheticEvent } from 'rea
 
 type Options = {
   onStep: (amount: number) => void
+  /** Incremento al soltar sin haber mantenido. */
+  tapAmount?: number
   holdAmount?: number
   repeatAmount?: number
   holdDelayMs?: number
@@ -9,10 +11,11 @@ type Options = {
 }
 
 /**
- * Clic = +1. Mantener: tras un rato +5, luego +10 en bucle.
+ * Clic = tapAmount (1 o −1). Mantener: holdAmount, luego repeatAmount.
  */
 export function useHoldRepeat({
   onStep,
+  tapAmount = 1,
   holdAmount = 5,
   repeatAmount = 10,
   holdDelayMs = 480,
@@ -58,9 +61,9 @@ export function useHoldRepeat({
       } catch {
         // ignore
       }
-      if (!wasHold) onStepRef.current(1)
+      if (!wasHold) onStepRef.current(tapAmount)
     },
-    [clear],
+    [clear, tapAmount],
   )
 
   const onPointerCancel = useCallback(() => {

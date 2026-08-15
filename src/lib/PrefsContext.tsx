@@ -8,16 +8,20 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  applyColorTheme,
   applyFontScale,
   applyHighContrast,
   loadAlertPrefs,
+  loadColorTheme,
   loadFontScale,
   loadHighContrast,
   saveAlertPrefs,
+  saveColorTheme,
   saveFontScale,
   saveHighContrast,
   stepFontScale,
   type AlertPrefs,
+  type ColorTheme,
   type FontScale,
 } from './prefs'
 
@@ -28,6 +32,8 @@ type PrefsApi = {
   resetText: () => void
   highContrast: boolean
   toggleHighContrast: () => void
+  theme: ColorTheme
+  toggleTheme: () => void
   alerts: AlertPrefs
   setAlertSound: (on: boolean) => void
   setAlertVibrate: (on: boolean) => void
@@ -38,6 +44,7 @@ const PrefsContext = createContext<PrefsApi | null>(null)
 export function PrefsProvider({ children }: { children: ReactNode }) {
   const [fontScale, setFontScale] = useState<FontScale>(() => loadFontScale())
   const [highContrast, setHighContrast] = useState(() => loadHighContrast())
+  const [theme, setTheme] = useState<ColorTheme>(() => loadColorTheme())
   const [alerts, setAlerts] = useState<AlertPrefs>(() => loadAlertPrefs())
 
   useEffect(() => {
@@ -49,6 +56,11 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     applyHighContrast(highContrast)
     saveHighContrast(highContrast)
   }, [highContrast])
+
+  useEffect(() => {
+    applyColorTheme(theme)
+    saveColorTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     saveAlertPrefs(alerts)
@@ -70,6 +82,10 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     setHighContrast((v) => !v)
   }, [])
 
+  const toggleTheme = useCallback(() => {
+    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  }, [])
+
   const setAlertSound = useCallback((on: boolean) => {
     setAlerts((a) => ({ ...a, sound: on }))
   }, [])
@@ -86,6 +102,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       resetText,
       highContrast,
       toggleHighContrast,
+      theme,
+      toggleTheme,
       alerts,
       setAlertSound,
       setAlertVibrate,
@@ -97,6 +115,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       resetText,
       highContrast,
       toggleHighContrast,
+      theme,
+      toggleTheme,
       alerts,
       setAlertSound,
       setAlertVibrate,

@@ -1,9 +1,11 @@
 const FONT_KEY = 'aburriaknittler.fontScale'
 const ALERTS_KEY = 'aburriaknittler.alertPrefs'
 const CONTRAST_KEY = 'aburriaknittler.highContrast'
+const THEME_KEY = 'aburriaknittler.colorTheme'
 
 export const FONT_STEPS = [0.9, 1, 1.15, 1.3, 1.5] as const
 export type FontScale = (typeof FONT_STEPS)[number]
+export type ColorTheme = 'light' | 'dark'
 
 export type AlertPrefs = {
   sound: boolean
@@ -69,6 +71,31 @@ export function saveHighContrast(on: boolean): void {
 
 export function applyHighContrast(on: boolean): void {
   document.documentElement.dataset.contrast = on ? 'high' : 'default'
+}
+
+export function loadColorTheme(): ColorTheme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+export function saveColorTheme(theme: ColorTheme): void {
+  try {
+    localStorage.setItem(THEME_KEY, theme)
+  } catch {
+    // ignore
+  }
+}
+
+export function applyColorTheme(theme: ColorTheme): void {
+  document.documentElement.dataset.theme = theme
+  document.documentElement.style.colorScheme = theme
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) {
+    meta.setAttribute('content', theme === 'dark' ? '#1a2420' : '#2f5d4a')
+  }
 }
 
 export function loadAlertPrefs(): AlertPrefs {

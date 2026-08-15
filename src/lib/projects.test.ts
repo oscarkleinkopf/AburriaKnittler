@@ -3,8 +3,11 @@ import {
   backupToJson,
   createProject,
   currentPatternStep,
+  formatClock,
   formatDuration,
+  groupSessionsByDay,
   parseBackupJson,
+  type KnitSession,
   type ProjectsState,
 } from './projects'
 
@@ -25,6 +28,54 @@ describe('formatDuration', () => {
     expect(formatDuration(4500)).toBe('4s')
     expect(formatDuration(65_000)).toBe('1m 05s')
     expect(formatDuration(3_661_000)).toBe('1h 01m')
+  })
+})
+
+describe('groupSessionsByDay', () => {
+  function session(
+    id: string,
+    endedAt: string,
+    durationMs: number,
+    startedAt = endedAt,
+  ): KnitSession {
+    return { id, startedAt, endedAt, durationMs }
+  }
+
+  it('groups by local day with Hoy / Ayer labels and newest day first', () => {
+    const now = new Date(2026, 7, 15, 18, 0, 0)
+    const groups = groupSessionsByDay(
+      [
+        session('t1', '2026-08-15T16:00:00', 600_000, '2026-08-15T15:50:00'),
+        session('t2', '2026-08-15T10:00:00', 120_000, '2026-08-15T09:58:00'),
+        session('y1', '2026-08-14T21:00:00', 1_800_000, '2026-08-14T20:30:00'),
+        session('old', '2026-08-10T08:00:00', 60_000, '2026-08-10T07:59:00'),
+      ],
+      now,
+    )
+    expect(groups.map((g) => g.label)).toEqual(['Hoy', 'Ayer', expect.any(String)])
+    expect(groups[0].sessions.map((s) => s.id)).toEqual(['t1', 't2'])
+    expect(groups[0].totalMs).toBe(720_000)
+    expect(groups[1].sessions).toHaveLength(1)
+    expect(groups[2].sessions[0].id).toBe('old')
+  })
+
+  it('keeps session order within a day', () => {
+    const now = new Date(2026, 7, 15, 12, 0, 0)
+    const groups = groupSessionsByDay(
+      [
+        session('newer', '2026-08-15T11:00:00', 1000),
+        session('older', '2026-08-15T09:00:00', 2000),
+      ],
+      now,
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0].sessions.map((s) => s.id)).toEqual(['newer', 'older'])
+  })
+})
+
+describe('formatClock', () => {
+  it('returns empty string for invalid dates', () => {
+    expect(formatClock('nope')).toBe('')
   })
 })
 
