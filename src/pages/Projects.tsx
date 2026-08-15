@@ -9,6 +9,7 @@ import {
   formatRelativeDate,
   readBackupFile,
   shareProject,
+  sortProjectsByRecent,
   type ImportMode,
 } from '../lib/projects'
 
@@ -275,7 +276,7 @@ export function ProjectsPage() {
 
       <div className="project-list" role="list">
         <h2 className="section-title">Tus proyectos</h2>
-        {state.projects.map((p) => {
+        {sortProjectsByRecent(state.projects).map((p) => {
           const isActive = p.id === state.activeId
           const isEditing = editingId === p.id
           return (

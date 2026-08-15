@@ -75,9 +75,31 @@ export function applyHighContrast(on: boolean): void {
 
 export function loadColorTheme(): ColorTheme {
   try {
-    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
+    const stored = localStorage.getItem(THEME_KEY)
+    if (stored === 'dark' || stored === 'light') return stored
   } catch {
-    return 'light'
+    // ignore
+  }
+  return prefersDarkScheme() ? 'dark' : 'light'
+}
+
+export function hasStoredColorTheme(): boolean {
+  try {
+    const stored = localStorage.getItem(THEME_KEY)
+    return stored === 'dark' || stored === 'light'
+  } catch {
+    return false
+  }
+}
+
+export function prefersDarkScheme(): boolean {
+  try {
+    return (
+      typeof matchMedia === 'function' &&
+      matchMedia('(prefers-color-scheme: dark)').matches
+    )
+  } catch {
+    return false
   }
 }
 

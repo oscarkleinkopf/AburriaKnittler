@@ -16,6 +16,7 @@ import {
   type KnitSession,
 } from '../lib/projects'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
+import { useWakeLock } from '../lib/useWakeLock'
 
 function playMarkerBeep() {
   try {
@@ -97,11 +98,13 @@ export function CounterPage() {
     active,
     bumpRows,
     bumpStitches,
+    undoLast,
     resetCounters,
     setMarkerEvery,
     startTimer,
     stopTimer,
     markOpened,
+    togglePatternStep,
   } = useProjects()
   const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
   const [bump, setBump] = useState(false)
@@ -154,6 +157,13 @@ export function CounterPage() {
       triggerBump()
     },
   })
+
+  function onUndo() {
+    undoLast()
+    triggerBump()
+  }
+
+  useWakeLock(Boolean(active?.timerStartedAt) || fullscreen)
 
   useEffect(() => {
     markOpened()
@@ -241,8 +251,23 @@ export function CounterPage() {
           if (!step) return null
           return (
             <Banner tone="info">
-              Patrón — fila {step.row}: {step.instruction}{' '}
-              <Link to="/patron">Ver patrón</Link>
+              <span>
+                Patrón — fila {step.row}: {step.instruction}
+              </span>
+              <span className="banner__actions">
+                <BigButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    togglePatternStep(step.id)
+                  }}
+                >
+                  Marcar hecha
+                </BigButton>
+                <BigButton to="/patron" variant="ghost">
+                  Ver patrón
+                </BigButton>
+              </span>
             </Banner>
           )
         })()}
@@ -348,13 +373,22 @@ export function CounterPage() {
           </div>
         </div>
 
-        <BigButton
-          variant="secondary"
-          block
-          onClick={() => setFullscreen(true)}
-        >
-          Pantalla completa
-        </BigButton>
+        <div className="counter-toolbar">
+          <BigButton
+            variant="secondary"
+            onClick={onUndo}
+            disabled={active.history.length === 0}
+            aria-label="Deshacer el último cambio del contador"
+          >
+            Deshacer
+          </BigButton>
+          <BigButton
+            variant="secondary"
+            onClick={() => setFullscreen(true)}
+          >
+            Pantalla completa
+          </BigButton>
+        </div>
 
         <div className="field">
           <label htmlFor={markerId}>Avisar cada N vueltas (0 = no)</label>
@@ -398,6 +432,13 @@ export function CounterPage() {
           variant="ghost"
           block
           onClick={() => {
+            if (
+              !window.confirm(
+                '¿Poner vueltas y puntos a 0? Puedes deshacer después si te arrepientes.',
+              )
+            ) {
+              return
+            }
             resetCounters()
             triggerBump()
           }}
@@ -504,6 +545,14 @@ export function CounterPage() {
               </div>
             </div>
           </div>
+          <button
+            type="button"
+            className="counter-fs__close"
+            onClick={onUndo}
+            disabled={active.history.length === 0}
+          >
+            Deshacer último toque
+          </button>
           <button
             type="button"
             className="counter-fs__close"

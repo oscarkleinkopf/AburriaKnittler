@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { BigButton } from '../components/BigButton'
 import { Banner } from '../components/Banner'
 import { InstallHint } from '../components/InstallHint'
@@ -14,11 +13,7 @@ import {
 const heroSrc = `${import.meta.env.BASE_URL}hero-knit.svg`
 
 export function HomePage() {
-  const { active, markOpened } = useProjects()
-
-  useEffect(() => {
-    if (active) markOpened()
-  }, [active?.id, markOpened])
+  const { active } = useProjects()
 
   const nextStep = active ? currentPatternStep(active) : null
   const showResume = Boolean(active && (active.rows > 0 || active.stitches > 0))

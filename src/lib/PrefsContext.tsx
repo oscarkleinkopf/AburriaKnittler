@@ -11,6 +11,7 @@ import {
   applyColorTheme,
   applyFontScale,
   applyHighContrast,
+  hasStoredColorTheme,
   loadAlertPrefs,
   loadColorTheme,
   loadFontScale,
@@ -45,6 +46,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const [fontScale, setFontScale] = useState<FontScale>(() => loadFontScale())
   const [highContrast, setHighContrast] = useState(() => loadHighContrast())
   const [theme, setTheme] = useState<ColorTheme>(() => loadColorTheme())
+  const [themeLocked, setThemeLocked] = useState(() => hasStoredColorTheme())
   const [alerts, setAlerts] = useState<AlertPrefs>(() => loadAlertPrefs())
 
   useEffect(() => {
@@ -59,8 +61,15 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyColorTheme(theme)
-    saveColorTheme(theme)
   }, [theme])
+
+  useEffect(() => {
+    if (themeLocked) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => setTheme(mq.matches ? 'dark' : 'light')
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [themeLocked])
 
   useEffect(() => {
     saveAlertPrefs(alerts)
@@ -83,7 +92,12 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const toggleTheme = useCallback(() => {
-    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+    setTheme((t) => {
+      const next = t === 'dark' ? 'light' : 'dark'
+      saveColorTheme(next)
+      return next
+    })
+    setThemeLocked(true)
   }, [])
 
   const setAlertSound = useCallback((on: boolean) => {

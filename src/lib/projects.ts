@@ -517,6 +517,52 @@ export function pushHistory(
   }
 }
 
+/** Restaura el contador al estado anterior al último toque. */
+export function undoLastChange(project: Project): Project {
+  if (project.history.length === 0) return project
+  if (project.history.length === 1) {
+    return { ...project, rows: 0, stitches: 0, history: [] }
+  }
+  const prev = project.history[1]
+  return {
+    ...project,
+    rows: Math.max(0, prev.rows),
+    stitches: Math.max(0, prev.stitches),
+    history: project.history.slice(1),
+  }
+}
+
+export function sortProjectsByRecent(projects: Project[]): Project[] {
+  return [...projects].sort((a, b) => {
+    const ta = Date.parse(a.lastOpenedAt || a.updatedAt || a.createdAt)
+    const tb = Date.parse(b.lastOpenedAt || b.updatedAt || b.createdAt)
+    const na = Number.isFinite(ta) ? ta : 0
+    const nb = Number.isFinite(tb) ? tb : 0
+    if (nb !== na) return nb - na
+    return a.name.localeCompare(b.name, 'es')
+  })
+}
+
+export function updatePatternStep(
+  project: Project,
+  stepId: string,
+  patch: { row?: number; instruction?: string },
+): Project {
+  return {
+    ...project,
+    patternSteps: project.patternSteps.map((s) => {
+      if (s.id !== stepId) return s
+      const instruction =
+        patch.instruction !== undefined
+          ? patch.instruction.trim() || s.instruction
+          : s.instruction
+      const row =
+        patch.row === undefined ? s.row : Math.max(0, Math.round(patch.row))
+      return { ...s, instruction, row }
+    }),
+  }
+}
+
 /** Reduce una imagen para guardarla en localStorage sin llenar la cuota. */
 export function compressImageFile(
   file: File,

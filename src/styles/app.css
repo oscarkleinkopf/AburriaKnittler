@@ -165,6 +165,19 @@
   width: 100%;
 }
 
+.banner {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 2px solid var(--color-line);
+}
+
+.banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .banner code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.92em;
@@ -435,6 +448,16 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
+}
+
+.counter-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.counter-toolbar .big-button {
+  width: 100%;
 }
 
 .file-button {
@@ -730,6 +753,11 @@
   font-weight: 700;
   font-size: 1.1rem;
   cursor: pointer;
+}
+
+.counter-fs__close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 @media (min-width: 720px) {

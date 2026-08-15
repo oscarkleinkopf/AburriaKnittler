@@ -7,6 +7,10 @@ import {
   formatDuration,
   groupSessionsByDay,
   parseBackupJson,
+  pushHistory,
+  sortProjectsByRecent,
+  undoLastChange,
+  updatePatternStep,
   type KnitSession,
   type ProjectsState,
 } from './projects'
@@ -99,6 +103,65 @@ describe('currentPatternStep', () => {
       { id: 'soon', row: 10, instruction: 'sisa', done: false },
     ]
     expect(currentPatternStep(project)?.id).toBe('soon')
+  })
+})
+
+describe('undoLastChange', () => {
+  it('restores the previous row and stitch counts', () => {
+    let project = createProject('Bufanda')
+    project.rows = 5
+    project.stitches = 12
+    project = pushHistory(project, 5, 12)
+    project.rows = 6
+    project.stitches = 0
+    project = pushHistory(project, 6, 0)
+    const undone = undoLastChange(project)
+    expect(undone.rows).toBe(5)
+    expect(undone.stitches).toBe(12)
+    expect(undone.history).toHaveLength(1)
+  })
+
+  it('returns to zero when there is only one history entry', () => {
+    let project = createProject('Gorro')
+    project.rows = 1
+    project = pushHistory(project, 1, 0)
+    const undone = undoLastChange(project)
+    expect(undone.rows).toBe(0)
+    expect(undone.stitches).toBe(0)
+    expect(undone.history).toHaveLength(0)
+  })
+})
+
+describe('sortProjectsByRecent', () => {
+  it('puts the most recently opened project first', () => {
+    const older = createProject('Viejo')
+    older.lastOpenedAt = '2026-08-01T10:00:00.000Z'
+    const newer = createProject('Nuevo')
+    newer.lastOpenedAt = '2026-08-15T10:00:00.000Z'
+    expect(sortProjectsByRecent([older, newer]).map((p) => p.name)).toEqual([
+      'Nuevo',
+      'Viejo',
+    ])
+  })
+})
+
+describe('updatePatternStep', () => {
+  it('edits row and instruction of one step', () => {
+    const project = createProject('Chal')
+    project.patternSteps = [
+      { id: 'keep', row: 4, instruction: 'derecho', done: false },
+      { id: 'edit', row: 8, instruction: 'vieja', done: false },
+    ]
+    const next = updatePatternStep(project, 'edit', {
+      row: 10,
+      instruction: '  2 juntos  ',
+    })
+    expect(next.patternSteps[1]).toMatchObject({
+      id: 'edit',
+      row: 10,
+      instruction: '2 juntos',
+    })
+    expect(next.patternSteps[0].instruction).toBe('derecho')
   })
 })
 

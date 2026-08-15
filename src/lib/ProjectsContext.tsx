@@ -15,6 +15,8 @@ import {
   pushHistory,
   saveState,
   touch,
+  undoLastChange,
+  updatePatternStep,
   type ImportMode,
   type ImportResult,
   type PatternStep,
@@ -31,6 +33,7 @@ type ProjectsApi = {
   deleteProject: (id: string) => void
   bumpRows: (delta: number) => void
   bumpStitches: (delta: number) => void
+  undoLast: () => void
   resetCounters: () => void
   setMarkerEvery: (n: number) => void
   saveAnalysis: (result: AnalyzeResult) => void
@@ -40,6 +43,10 @@ type ProjectsApi = {
   markOpened: () => void
   addPatternStep: (row: number, instruction: string) => void
   togglePatternStep: (stepId: string) => void
+  updatePatternStep: (
+    stepId: string,
+    patch: { row?: number; instruction?: string },
+  ) => void
   removePatternStep: (stepId: string) => void
   startTimer: () => void
   stopTimer: () => void
@@ -153,6 +160,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const undoLast = useCallback(() => {
+    patchActive((p) => undoLastChange(p))
+  }, [])
+
   const resetCounters = useCallback(() => {
     patchActive((p) => ({ ...p, rows: 0, stitches: 0 }), true)
   }, [])
@@ -212,6 +223,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const updateStep = useCallback(
+    (stepId: string, patch: { row?: number; instruction?: string }) => {
+      patchActive((p) => updatePatternStep(p, stepId, patch))
+    },
+    [],
+  )
+
   const removePatternStep = useCallback((stepId: string) => {
     patchActive((p) => ({
       ...p,
@@ -260,6 +278,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      undoLast,
       resetCounters,
       setMarkerEvery,
       saveAnalysis,
@@ -269,6 +288,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       markOpened,
       addPatternStep,
       togglePatternStep,
+      updatePatternStep: updateStep,
       removePatternStep,
       startTimer,
       stopTimer,
@@ -282,6 +302,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      undoLast,
       resetCounters,
       setMarkerEvery,
       saveAnalysis,
@@ -291,6 +312,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       markOpened,
       addPatternStep,
       togglePatternStep,
+      updateStep,
       removePatternStep,
       startTimer,
       stopTimer,
