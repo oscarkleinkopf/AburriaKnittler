@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import { useProjects } from '../lib/ProjectsContext'
-import { currentPatternStep } from '../lib/projects'
+import {
+  currentPatternStep,
+  parsePatternText,
+  patternStepToSpeech,
+} from '../lib/projects'
+import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 
 export function PatternPage() {
   const {
     active,
     addPatternStep,
+    addPatternSteps,
     togglePatternStep,
     updatePatternStep,
     removePatternStep,
@@ -21,12 +27,19 @@ export function PatternPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [hideDone, setHideDone] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [paste, setPaste] = useState('')
+  const [speaking, setSpeaking] = useState(false)
+  const pasteId = useId()
   const [editRow, setEditRow] = useState('')
   const [editInstruction, setEditInstruction] = useState('')
 
   useEffect(() => {
     markOpened()
   }, [active?.id, markOpened])
+
+  useEffect(() => {
+    return () => stopSpeaking()
+  }, [])
 
   useEffect(() => {
     if (active) setRow(String(Math.max(0, active.rows)))
@@ -58,6 +71,22 @@ export function PatternPage() {
     setInstruction('')
     setRow(String(n + 1))
     setMessage(`Añadida instrucción para la fila ${n}.`)
+  }
+
+  function onPasteText(e: FormEvent) {
+    e.preventDefault()
+    const start = Number.parseInt(row, 10)
+    const steps = parsePatternText(
+      paste,
+      Number.isFinite(start) ? start : 1,
+    )
+    if (steps.length === 0) {
+      setMessage('No encontré filas en el texto. Una por línea, p. ej. «12: 2 juntos».')
+      return
+    }
+    addPatternSteps(steps)
+    setPaste('')
+    setMessage(`Añadidas ${steps.length} instrucciones desde el texto.`)
   }
 
   function startEdit(id: string) {
@@ -114,16 +143,35 @@ export function PatternPage() {
           <p className="project-active__label">Siguiente paso</p>
           <p className="pattern-next__row">Fila {nextStep.row}</p>
           <p className="pattern-next__text">{nextStep.instruction}</p>
-          <BigButton
-            type="button"
-            variant="primary"
-            onClick={() => {
-              togglePatternStep(nextStep.id)
-              setMessage(`Fila ${nextStep.row} marcada como hecha.`)
-            }}
-          >
-            Marcar hecha
-          </BigButton>
+          <div className="row-actions">
+            <BigButton
+              type="button"
+              variant="primary"
+              onClick={() => {
+                togglePatternStep(nextStep.id)
+                setMessage(`Fila ${nextStep.row} marcada como hecha.`)
+              }}
+            >
+              Marcar hecha
+            </BigButton>
+            {canSpeak() && (
+              <BigButton
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  if (speaking) {
+                    stopSpeaking()
+                    setSpeaking(false)
+                    return
+                  }
+                  speakText(patternStepToSpeech(nextStep))
+                  setSpeaking(true)
+                }}
+              >
+                {speaking ? 'Detener' : 'Leer paso'}
+              </BigButton>
+            )}
+          </div>
         </div>
       )}
 
@@ -154,6 +202,27 @@ export function PatternPage() {
         </div>
         <BigButton type="submit" variant="secondary" block>
           Añadir al patrón
+        </BigButton>
+      </form>
+
+      <form className="stack" onSubmit={onPasteText}>
+        <h2 className="section-title">Pegar patrón</h2>
+        <p className="muted">
+          Una instrucción por línea. Acepta «12: 2 juntos», «Fila 8 lazada» o
+          líneas sin número (sigue desde la fila de arriba).
+        </p>
+        <div className="field">
+          <label htmlFor={pasteId}>Texto del patrón</label>
+          <textarea
+            id={pasteId}
+            rows={5}
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            placeholder={'12: 2 juntos, lazada\n13: derecho hasta el final'}
+          />
+        </div>
+        <BigButton type="submit" variant="ghost" block disabled={!paste.trim()}>
+          Añadir desde texto
         </BigButton>
       </form>
 

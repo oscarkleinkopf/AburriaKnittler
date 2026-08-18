@@ -160,3 +160,29 @@ export function dismissStorageHint(): void {
     // ignore
   }
 }
+
+function timerContinueKey(projectId: string, startedAt: string): string {
+  return `aburriaknittler.timerContinue.${projectId}:${startedAt}`
+}
+
+export function isLongSessionDismissed(
+  projectId: string,
+  startedAt: string,
+): boolean {
+  try {
+    return sessionStorage.getItem(timerContinueKey(projectId, startedAt)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function dismissLongSession(
+  projectId: string,
+  startedAt: string,
+): void {
+  try {
+    sessionStorage.setItem(timerContinueKey(projectId, startedAt), '1')
+  } catch {
+    // ignore
+  }
+}

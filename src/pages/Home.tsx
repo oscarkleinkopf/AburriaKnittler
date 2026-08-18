@@ -2,11 +2,13 @@ import { BigButton } from '../components/BigButton'
 import { Banner } from '../components/Banner'
 import { DataCareBanners } from '../components/DataCareBanners'
 import { InstallHint } from '../components/InstallHint'
+import { LongSessionBanner } from '../components/LongSessionBanner'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   currentPatternStep,
   formatDuration,
   formatRelativeDate,
+  goalProgress,
   sessionMsToday,
   totalSessionMs,
 } from '../lib/projects'
@@ -14,7 +16,7 @@ import {
 const heroSrc = `${import.meta.env.BASE_URL}hero-knit.svg`
 
 export function HomePage() {
-  const { active, state } = useProjects()
+  const { active, state, stopTimer } = useProjects()
 
   const nextStep = active ? currentPatternStep(active) : null
   const showResume = Boolean(active && (active.rows > 0 || active.stitches > 0))
@@ -30,6 +32,10 @@ export function HomePage() {
           perder el hilo.
         </p>
 
+        {active && (
+          <LongSessionBanner project={active} onStop={stopTimer} />
+        )}
+
         {showResume && active && (
           <div className="resume-card">
             <Banner tone="info">
@@ -41,7 +47,13 @@ export function HomePage() {
                 : ''}
               {nextStep
                 ? ` Siguiente del patrón — fila ${nextStep.row}: ${nextStep.instruction}`
-                : ''}{' '}
+                : ''}
+              {(() => {
+                const goal = goalProgress(active)
+                return goal
+                  ? ` Meta ${goal.current} de ${goal.target}.`
+                  : ''
+              })()}{' '}
               Hoy {formatDuration(sessionMsToday(active))} · total{' '}
               {formatDuration(totalSessionMs(active))}.
             </Banner>

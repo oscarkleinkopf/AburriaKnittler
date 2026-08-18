@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
+import { LongSessionBanner } from '../components/LongSessionBanner'
 import { usePrefs } from '../lib/PrefsContext'
 import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
@@ -10,11 +11,15 @@ import {
   formatClock,
   formatDuration,
   formatRelativeDate,
+  goalProgress,
   groupSessionsByDay,
+  namedMarkerAt,
+  patternStepToSpeech,
   sessionMsToday,
   totalSessionMs,
   type KnitSession,
 } from '../lib/projects'
+import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
 import { useWakeLock } from '../lib/useWakeLock'
 
@@ -101,6 +106,9 @@ export function CounterPage() {
     undoLast,
     resetCounters,
     setMarkerEvery,
+    setTargetRows,
+    addNamedMarker,
+    removeNamedMarker,
     startTimer,
     stopTimer,
     markOpened,
@@ -108,12 +116,18 @@ export function CounterPage() {
   } = useProjects()
   const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
   const [bump, setBump] = useState(false)
-  const [markerHit, setMarkerHit] = useState(false)
+  const [markerHit, setMarkerHit] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [showAllSessions, setShowAllSessions] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [markerLabel, setMarkerLabel] = useState('')
+  const [markerRow, setMarkerRow] = useState('')
   const bumpTimer = useRef<number | null>(null)
   const markerId = useId()
+  const targetId = useId()
+  const namedRowId = useId()
+  const namedLabelId = useId()
   const soundId = useId()
   const vibeId = useId()
   const prevRows = useRef(active?.rows ?? 0)
@@ -177,7 +191,7 @@ export function CounterPage() {
 
   useEffect(() => {
     prevRows.current = active?.rows ?? 0
-    setMarkerHit(false)
+    setMarkerHit(null)
   }, [active?.id])
 
   useEffect(() => {
@@ -185,17 +199,20 @@ export function CounterPage() {
     const prev = prevRows.current
     const next = active.rows
     prevRows.current = next
-    if (
-      active.markerEvery > 0 &&
-      next > prev &&
-      next % active.markerEvery === 0
-    ) {
-      setMarkerHit(true)
-      if (alerts.sound) playMarkerBeep()
-      if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
-      window.setTimeout(() => setMarkerHit(false), 2500)
-    }
-  }, [active, active?.rows, active?.markerEvery, alerts.sound, alerts.vibrate])
+    if (next <= prev) return
+    const named = namedMarkerAt(active, next)
+    const every =
+      active.markerEvery > 0 && next % active.markerEvery === 0
+    if (!named && !every) return
+    const bits = [
+      named ? named.label : null,
+      every ? `cada ${active.markerEvery}` : null,
+    ].filter(Boolean)
+    setMarkerHit(`Marcador: vuelta ${next} (${bits.join(' · ')})`)
+    if (alerts.sound) playMarkerBeep()
+    if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
+    window.setTimeout(() => setMarkerHit(null), 2500)
+  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, alerts.sound, alerts.vibrate])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -210,6 +227,10 @@ export function CounterPage() {
       document.body.style.overflow = prev
     }
   }, [fullscreen])
+
+  useEffect(() => {
+    return () => stopSpeaking()
+  }, [])
 
   if (!active) {
     return (
@@ -237,12 +258,20 @@ export function CounterPage() {
             Proyecto: <strong>{active.name}</strong>. Un toque suma o resta 1;
             mantén pulsado para ±5 y luego ±10.
           </p>
+          {active.notes.trim() ? (
+            <p className="project-notes-preview">{active.notes}</p>
+          ) : null}
         </div>
+
+        <LongSessionBanner
+          project={active}
+          now={now}
+          onStop={stopTimer}
+        />
 
         {markerHit && (
           <Banner tone="info" role="alert">
-            Marcador: llegada a la vuelta {active.rows} (cada{' '}
-            {active.markerEvery}).
+            {markerHit}
           </Banner>
         )}
 
@@ -264,6 +293,23 @@ export function CounterPage() {
                 >
                   Marcar hecha
                 </BigButton>
+                {canSpeak() && (
+                  <BigButton
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (speaking) {
+                        stopSpeaking()
+                        setSpeaking(false)
+                        return
+                      }
+                      speakText(patternStepToSpeech(step))
+                      setSpeaking(true)
+                    }}
+                  >
+                    {speaking ? 'Detener' : 'Leer paso'}
+                  </BigButton>
+                )}
                 <BigButton to="/patron" variant="ghost">
                   Ver patrón
                 </BigButton>
@@ -285,6 +331,33 @@ export function CounterPage() {
               : '0s'}
             {active.timerStartedAt ? ' · en curso' : ' · parado'}
           </p>
+          {(() => {
+            const goal = goalProgress(active)
+            if (!goal) return null
+            return (
+              <div className="goal-panel">
+                <p className="muted">
+                  Meta: vuelta {goal.current} de {goal.target}
+                  {goal.done
+                    ? ' · hecha'
+                    : ` · faltan ${goal.remaining}`}
+                </p>
+                <div
+                  className="goal-bar"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuenow={goal.current}
+                  aria-valuemax={goal.target}
+                  aria-label="Avance hacia la meta de vueltas"
+                >
+                  <span
+                    className="goal-bar__fill"
+                    style={{ width: `${Math.round(goal.ratio * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })()}
           <p className="muted">
             Hoy {formatDuration(sessionMsToday(active))} · total{' '}
             {formatDuration(totalSessionMs(active))}
@@ -406,6 +479,83 @@ export function CounterPage() {
           />
         </div>
 
+        <div className="field">
+          <label htmlFor={targetId}>Meta de vueltas (0 = sin meta)</label>
+          <input
+            id={targetId}
+            type="number"
+            min={0}
+            max={9999}
+            inputMode="numeric"
+            value={active.targetRows}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10)
+              setTargetRows(Number.isFinite(n) ? n : 0)
+            }}
+          />
+        </div>
+
+        <div className="named-markers">
+          <h2 className="section-title">Marcadores con nombre</h2>
+          <p className="muted">
+            Avisa en una vuelta concreta (sisa, elástico, cierre…).
+          </p>
+          {active.namedMarkers.length > 0 && (
+            <ul className="named-markers__list">
+              {[...active.namedMarkers]
+                .sort((a, b) => a.row - b.row)
+                .map((m) => (
+                  <li key={m.id}>
+                    <span>
+                      Vuelta {m.row}: {m.label}
+                    </span>
+                    <BigButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeNamedMarker(m.id)}
+                    >
+                      Quitar
+                    </BigButton>
+                  </li>
+                ))}
+            </ul>
+          )}
+          <div className="field">
+            <label htmlFor={namedRowId}>Vuelta</label>
+            <input
+              id={namedRowId}
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={markerRow}
+              onChange={(e) => setMarkerRow(e.target.value)}
+              placeholder={String(active.rows || 1)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={namedLabelId}>Nombre</label>
+            <input
+              id={namedLabelId}
+              value={markerLabel}
+              onChange={(e) => setMarkerLabel(e.target.value)}
+              placeholder="Sisa, elástico…"
+            />
+          </div>
+          <BigButton
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              const n = Number.parseInt(markerRow, 10)
+              const row = Number.isFinite(n) ? n : active.rows
+              addNamedMarker(row, markerLabel)
+              setMarkerLabel('')
+            }}
+            disabled={!markerLabel.trim()}
+          >
+            Añadir marcador
+          </BigButton>
+        </div>
+
         <fieldset className="alert-prefs">
           <legend className="section-title">Avisos del marcador</legend>
           <label className="backup-mode" htmlFor={soundId}>
@@ -482,9 +632,19 @@ export function CounterPage() {
           aria-label="Contador a pantalla completa"
         >
           <p className="counter-fs__project">{active.name}</p>
+          {(() => {
+            const goal = goalProgress(active)
+            if (!goal) return null
+            return (
+              <p className="muted" style={{ textAlign: 'center' }}>
+                {goal.current} de {goal.target}
+                {goal.done ? ' · meta hecha' : ''}
+              </p>
+            )
+          })()}
           {markerHit && (
             <p className="counter-fs__marker" role="alert">
-              Marcador: vuelta {active.rows}
+              {markerHit}
             </p>
           )}
           <div className="counter-fs__grid">

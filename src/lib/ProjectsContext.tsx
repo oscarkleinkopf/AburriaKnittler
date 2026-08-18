@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { AnalyzeResult } from './analyze'
 import {
+  appendPatternSteps,
   applyAnalysisToCounters,
   createId,
   createProject,
@@ -21,6 +22,7 @@ import {
   updatePatternStep,
   type ImportMode,
   type ImportResult,
+  type NamedMarker,
   type PatternStep,
   type Project,
   type ProjectsState,
@@ -39,6 +41,9 @@ type ProjectsApi = {
   undoLast: () => void
   resetCounters: () => void
   setMarkerEvery: (n: number) => void
+  setTargetRows: (n: number) => void
+  addNamedMarker: (row: number, label: string) => void
+  removeNamedMarker: (id: string) => void
   saveAnalysis: (result: AnalyzeResult) => void
   applyAnalysisToCounters: (result: AnalyzeResult) => void
   setPhoto: (dataUrl: string | null) => void
@@ -46,6 +51,7 @@ type ProjectsApi = {
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
   markOpened: () => void
   addPatternStep: (row: number, instruction: string) => void
+  addPatternSteps: (steps: PatternStep[]) => void
   togglePatternStep: (stepId: string) => void
   updatePatternStep: (
     stepId: string,
@@ -192,6 +198,31 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     patchActive((p) => ({ ...p, markerEvery: Math.max(0, Math.floor(n)) }))
   }, [])
 
+  const setTargetRows = useCallback((n: number) => {
+    patchActive((p) => ({ ...p, targetRows: Math.max(0, Math.floor(n)) }))
+  }, [])
+
+  const addNamedMarker = useCallback((row: number, label: string) => {
+    const text = label.trim()
+    if (!text) return
+    const marker: NamedMarker = {
+      id: createId(),
+      row: Math.max(0, Math.round(row)),
+      label: text,
+    }
+    patchActive((p) => ({
+      ...p,
+      namedMarkers: [...p.namedMarkers, marker].slice(0, 40),
+    }))
+  }, [])
+
+  const removeNamedMarker = useCallback((id: string) => {
+    patchActive((p) => ({
+      ...p,
+      namedMarkers: p.namedMarkers.filter((m) => m.id !== id),
+    }))
+  }, [])
+
   const saveAnalysis = useCallback((result: AnalyzeResult) => {
     patchActive((p) => ({ ...p, lastAnalysis: result }))
   }, [])
@@ -236,6 +267,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       ...p,
       patternSteps: [...p.patternSteps, step],
     }))
+  }, [])
+
+  const addPatternSteps = useCallback((steps: PatternStep[]) => {
+    if (steps.length === 0) return
+    patchActive((p) => appendPatternSteps(p, steps))
   }, [])
 
   const togglePatternStep = useCallback((stepId: string) => {
@@ -306,6 +342,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       undoLast,
       resetCounters,
       setMarkerEvery,
+      setTargetRows,
+      addNamedMarker,
+      removeNamedMarker,
       saveAnalysis,
       applyAnalysisToCounters: applyAnalysis,
       setPhoto,
@@ -313,6 +352,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       importBackup,
       markOpened,
       addPatternStep,
+      addPatternSteps,
       togglePatternStep,
       updatePatternStep: updateStep,
       removePatternStep,
@@ -332,6 +372,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       undoLast,
       resetCounters,
       setMarkerEvery,
+      setTargetRows,
+      addNamedMarker,
+      removeNamedMarker,
       saveAnalysis,
       applyAnalysis,
       setPhoto,
@@ -339,6 +382,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       importBackup,
       markOpened,
       addPatternStep,
+      addPatternSteps,
       togglePatternStep,
       updateStep,
       removePatternStep,

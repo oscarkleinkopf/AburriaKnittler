@@ -21,6 +21,12 @@ export type KnitSession = {
   durationMs: number
 }
 
+export type NamedMarker = {
+  id: string
+  row: number
+  label: string
+}
+
 export type Project = {
   id: string
   name: string
@@ -32,6 +38,9 @@ export type Project = {
   stitches: number
   /** 0 = desactivado */
   markerEvery: number
+  /** 0 = sin meta */
+  targetRows: number
+  namedMarkers: NamedMarker[]
   history: HistoryEntry[]
   lastAnalysis: AnalyzeResult | null
   patternSteps: PatternStep[]
@@ -53,6 +62,9 @@ const LEGACY_ROW_KEY = 'aburriaknittler.rowCount'
 const MAX_HISTORY = 40
 const MAX_SESSIONS = 80
 const MAX_PATTERN_STEPS = 200
+const MAX_NAMED_MARKERS = 40
+/** Sesión en curso más de 3 h: preguntar si sigue. */
+export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
 
 export function createId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -73,6 +85,8 @@ export function createProject(name: string, notes = ''): Project {
     rows: 0,
     stitches: 0,
     markerEvery: 0,
+    targetRows: 0,
+    namedMarkers: [],
     history: [],
     lastAnalysis: null,
     patternSteps: [],
@@ -151,6 +165,14 @@ function normalizeSession(s: KnitSession): KnitSession {
   }
 }
 
+function normalizeNamedMarker(m: NamedMarker): NamedMarker {
+  return {
+    id: m.id || createId(),
+    row: Math.max(0, Math.round(Number(m.row) || 0)),
+    label: String(m.label ?? '').trim() || 'Marcador',
+  }
+}
+
 function normalizeProject(p: Project): Project {
   return {
     id: p.id || createId(),
@@ -162,6 +184,10 @@ function normalizeProject(p: Project): Project {
     rows: Math.max(0, Number(p.rows) || 0),
     stitches: Math.max(0, Number(p.stitches) || 0),
     markerEvery: Math.max(0, Number(p.markerEvery) || 0),
+    targetRows: Math.max(0, Number(p.targetRows) || 0),
+    namedMarkers: Array.isArray(p.namedMarkers)
+      ? p.namedMarkers.map(normalizeNamedMarker).slice(0, MAX_NAMED_MARKERS)
+      : [],
     history: Array.isArray(p.history) ? p.history.slice(0, MAX_HISTORY) : [],
     lastAnalysis: p.lastAnalysis ?? null,
     patternSteps: Array.isArray(p.patternSteps)
@@ -240,6 +266,103 @@ export function currentPatternStep(
   if (pending.length === 0) return null
   const forCurrentRow = pending.find((s) => s.row === project.rows)
   return forCurrentRow ?? pending[0]
+}
+
+export function patternStepToSpeech(step: PatternStep): string {
+  return `Fila ${step.row}. ${step.instruction}.`
+}
+
+const NUMBERED_LINE =
+  /^(?:(?:fila|vuelta|row|r|f)\.?\s*)?(\d+)\s*[:.)\-–—]\s*(.+)$/i
+const FILA_SPACE_LINE = /^(?:fila|vuelta|row)\s+(\d+)\s+(.+)$/i
+
+/** Convierte texto pegado en pasos de patrón (una línea = una fila). */
+export function parsePatternText(
+  text: string,
+  startRow = 1,
+): PatternStep[] {
+  const lines = text.split(/\r?\n/)
+  const steps: PatternStep[] = []
+  let nextRow = Math.max(0, Math.round(startRow) || 1)
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) continue
+    const numbered = line.match(NUMBERED_LINE) ?? line.match(FILA_SPACE_LINE)
+    if (numbered) {
+      const row = Math.max(0, Number.parseInt(numbered[1], 10))
+      const instruction = numbered[2].trim()
+      if (!instruction) continue
+      steps.push({
+        id: createId(),
+        row,
+        instruction,
+        done: false,
+      })
+      nextRow = row + 1
+      continue
+    }
+    steps.push({
+      id: createId(),
+      row: nextRow,
+      instruction: line,
+      done: false,
+    })
+    nextRow += 1
+  }
+  return steps.slice(0, MAX_PATTERN_STEPS)
+}
+
+export function appendPatternSteps(
+  project: Project,
+  incoming: PatternStep[],
+): Project {
+  if (incoming.length === 0) return project
+  return {
+    ...project,
+    patternSteps: [...project.patternSteps, ...incoming].slice(
+      0,
+      MAX_PATTERN_STEPS,
+    ),
+  }
+}
+
+export function namedMarkerAt(
+  project: Project,
+  row: number,
+): NamedMarker | undefined {
+  return project.namedMarkers.find((m) => m.row === row)
+}
+
+export type GoalProgress = {
+  current: number
+  target: number
+  remaining: number
+  ratio: number
+  done: boolean
+}
+
+export function goalProgress(project: Project): GoalProgress | null {
+  if (project.targetRows <= 0) return null
+  const current = project.rows
+  const target = project.targetRows
+  const remaining = Math.max(0, target - current)
+  return {
+    current,
+    target,
+    remaining,
+    ratio: Math.min(1, current / target),
+    done: current >= target,
+  }
+}
+
+export function isLongRunningSession(
+  project: Project,
+  now = Date.now(),
+): boolean {
+  if (!project.timerStartedAt) return false
+  const started = Date.parse(project.timerStartedAt)
+  if (!Number.isFinite(started)) return false
+  return now - started >= LONG_SESSION_MS
 }
 
 export type BackupFile = {
@@ -625,6 +748,10 @@ export function duplicateProject(
       ...s,
       id: createId(),
       done: false,
+    })),
+    namedMarkers: project.namedMarkers.map((m) => ({
+      ...m,
+      id: createId(),
     })),
   }
 }

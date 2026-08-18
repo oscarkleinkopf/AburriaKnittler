@@ -10,10 +10,15 @@ import {
   groupSessionsByDay,
   nextCopyName,
   parseBackupJson,
+  parsePatternText,
   pushHistory,
   sortProjectsByRecent,
   undoLastChange,
   updatePatternStep,
+  goalProgress,
+  isLongRunningSession,
+  LONG_SESSION_MS,
+  namedMarkerAt,
   type KnitSession,
   type ProjectsState,
 } from './projects'
@@ -285,5 +290,64 @@ describe('parseBackupJson', () => {
   it('rejects invalid JSON with a Spanish error', () => {
     const current = stateOf([createProject('X')])
     expect(() => parseBackupJson('{no', current, 'merge')).toThrow(/JSON/)
+  })
+})
+
+describe('parsePatternText', () => {
+  it('reads numbered lines and continues unnumbered ones', () => {
+    const steps = parsePatternText(
+      'Fila 12: 2 juntos, lazada\n13) derecho\nsisa\n\n8: elástico',
+      1,
+    )
+    expect(steps.map((s) => ({ row: s.row, instruction: s.instruction }))).toEqual(
+      [
+        { row: 12, instruction: '2 juntos, lazada' },
+        { row: 13, instruction: 'derecho' },
+        { row: 14, instruction: 'sisa' },
+        { row: 8, instruction: 'elástico' },
+      ],
+    )
+  })
+
+  it('numbers plain lines from the start row', () => {
+    const steps = parsePatternText('lazada\n2 juntos', 20)
+    expect(steps.map((s) => s.row)).toEqual([20, 21])
+  })
+})
+
+describe('goalProgress', () => {
+  it('returns null without a target and remaining rows with one', () => {
+    const project = createProject('Bufanda')
+    expect(goalProgress(project)).toBeNull()
+    project.targetRows = 80
+    project.rows = 42
+    expect(goalProgress(project)).toMatchObject({
+      current: 42,
+      target: 80,
+      remaining: 38,
+      done: false,
+    })
+    project.rows = 80
+    expect(goalProgress(project)?.done).toBe(true)
+  })
+})
+
+describe('namedMarkerAt and long session', () => {
+  it('finds a named marker on a row', () => {
+    const project = createProject('Jersey')
+    project.namedMarkers = [
+      { id: 'a', row: 30, label: 'Sisa' },
+    ]
+    expect(namedMarkerAt(project, 30)?.label).toBe('Sisa')
+    expect(namedMarkerAt(project, 29)).toBeUndefined()
+  })
+
+  it('detects a timer running longer than three hours', () => {
+    const project = createProject('Chal')
+    const now = Date.parse('2026-08-18T16:00:00.000Z')
+    project.timerStartedAt = new Date(now - LONG_SESSION_MS - 1000).toISOString()
+    expect(isLongRunningSession(project, now)).toBe(true)
+    project.timerStartedAt = new Date(now - 60_000).toISOString()
+    expect(isLongRunningSession(project, now)).toBe(false)
   })
 })
