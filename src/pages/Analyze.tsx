@@ -10,7 +10,11 @@ import {
 } from '../lib/analyze'
 import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
 import { useProjects } from '../lib/ProjectsContext'
-import { compressImageFile } from '../lib/projects'
+import {
+  analysisHasCounters,
+  compressImageFile,
+  getLastSaveResult,
+} from '../lib/projects'
 import {
   analysisToSpeech,
   canSpeak,
@@ -51,7 +55,8 @@ function emptyDraft(): AnalyzeResult {
 }
 
 export function AnalyzePage() {
-  const { active, saveAnalysis, setPhoto } = useProjects()
+  const { active, saveAnalysis, setPhoto, applyAnalysisToCounters } =
+    useProjects()
   const online = useOnline()
   const gemini = hasGeminiKey()
   const inputId = useId()
@@ -172,6 +177,13 @@ export function AnalyzePage() {
         try {
           const thumb = await compressImageFile(file)
           setPhoto(thumb)
+          const save = getLastSaveResult()
+          if (!save.ok && save.reason === 'quota') {
+            setPhoto(null)
+            setSaveMsg(
+              'Estimación guardada. La foto no cupo; quita otra o exporta un respaldo.',
+            )
+          }
         } catch {
           // photo optional
         }
@@ -224,6 +236,26 @@ export function AnalyzePage() {
     } else {
       setSaveMsg('Corrección aplicada en esta pantalla.')
     }
+  }
+
+  function applyToCounter() {
+    if (!active || !result || !analysisHasCounters(result)) return
+    const nextRows = result.estimatedRows ?? active.rows
+    const nextStitches = result.estimatedStitches ?? active.stitches
+    if (active.rows === nextRows && active.stitches === nextStitches) {
+      setSaveMsg('El contador ya tiene esos números.')
+      return
+    }
+    if (active.rows > 0 || active.stitches > 0) {
+      const ok = window.confirm(
+        `El contador está en vuelta ${active.rows}, punto ${active.stitches}. ¿Ponerlo a vuelta ${nextRows}, punto ${nextStitches}?`,
+      )
+      if (!ok) return
+    }
+    applyAnalysisToCounters(result)
+    setSaveMsg(
+      `Contador actualizado: vuelta ${nextRows} · punto ${nextStitches}.`,
+    )
   }
 
   function toggleSpeak() {
@@ -346,7 +378,18 @@ export function AnalyzePage() {
         </Banner>
       )}
 
-      {saveMsg && <Banner tone="info">{saveMsg}</Banner>}
+      {saveMsg && (
+        <Banner tone="info">
+          {saveMsg}
+          {saveMsg.startsWith('Contador actualizado') && (
+            <span className="banner__actions">
+              <BigButton to="/contador" variant="secondary">
+                Ir al contador
+              </BigButton>
+            </span>
+          )}
+        </Banner>
+      )}
 
       {showResults && (
         <div className="results" aria-live="polite">
@@ -387,6 +430,15 @@ export function AnalyzePage() {
                 </div>
               )}
               <div className="row-actions">
+                {active && analysisHasCounters(result) && (
+                  <BigButton
+                    type="button"
+                    variant="primary"
+                    onClick={applyToCounter}
+                  >
+                    Usar en el contador
+                  </BigButton>
+                )}
                 <BigButton type="button" variant="secondary" onClick={startEdit}>
                   Corregir a mano
                 </BigButton>

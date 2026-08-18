@@ -489,11 +489,37 @@ export async function readBackupFile(file: File): Promise<string> {
   return file.text()
 }
 
-export function saveState(state: ProjectsState): void {
+export type SaveResult =
+  | { ok: true }
+  | { ok: false; reason: 'quota' | 'unavailable' }
+
+let lastSaveResult: SaveResult = { ok: true }
+
+export function getLastSaveResult(): SaveResult {
+  return lastSaveResult
+}
+
+export function isQuotaError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: string; code?: number }
+  return (
+    e.name === 'QuotaExceededError' ||
+    e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    e.code === 22
+  )
+}
+
+export function saveState(state: ProjectsState): SaveResult {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // quota / private mode
+    lastSaveResult = { ok: true }
+    return lastSaveResult
+  } catch (err) {
+    lastSaveResult = {
+      ok: false,
+      reason: isQuotaError(err) ? 'quota' : 'unavailable',
+    }
+    return lastSaveResult
   }
 }
 
@@ -561,6 +587,67 @@ export function updatePatternStep(
       return { ...s, instruction, row }
     }),
   }
+}
+
+export function nextCopyName(
+  original: string,
+  existingNames: string[],
+): string {
+  const base =
+    original.replace(/\s*\(copia(?: \d+)?\)\s*$/i, '').trim() || original
+  const taken = new Set(existingNames.map((n) => n.toLowerCase()))
+  const first = `${base} (copia)`
+  if (!taken.has(first.toLowerCase())) return first
+  let n = 2
+  while (taken.has(`${base} (copia ${n})`.toLowerCase())) n += 1
+  return `${base} (copia ${n})`
+}
+
+/** Copia patrón, notas, foto y análisis; el contador y las sesiones empiezan de cero. */
+export function duplicateProject(
+  project: Project,
+  existingNames: string[],
+): Project {
+  const now = new Date().toISOString()
+  return {
+    ...project,
+    id: createId(),
+    name: nextCopyName(project.name, existingNames),
+    createdAt: now,
+    updatedAt: now,
+    lastOpenedAt: now,
+    rows: 0,
+    stitches: 0,
+    history: [],
+    sessions: [],
+    timerStartedAt: null,
+    patternSteps: project.patternSteps.map((s) => ({
+      ...s,
+      id: createId(),
+      done: false,
+    })),
+  }
+}
+
+export function analysisHasCounters(result: AnalyzeResult): boolean {
+  return result.estimatedRows != null || result.estimatedStitches != null
+}
+
+export function applyAnalysisToCounters(
+  project: Project,
+  analysis: AnalyzeResult,
+): Project {
+  const rows =
+    analysis.estimatedRows == null || Number.isNaN(analysis.estimatedRows)
+      ? project.rows
+      : Math.max(0, Math.round(analysis.estimatedRows))
+  const stitches =
+    analysis.estimatedStitches == null ||
+    Number.isNaN(analysis.estimatedStitches)
+      ? project.stitches
+      : Math.max(0, Math.round(analysis.estimatedStitches))
+  if (rows === project.rows && stitches === project.stitches) return project
+  return pushHistory({ ...project, rows, stitches }, rows, stitches)
 }
 
 /** Reduce una imagen para guardarla en localStorage sin llenar la cuota. */

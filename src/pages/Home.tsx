@@ -1,5 +1,6 @@
 import { BigButton } from '../components/BigButton'
 import { Banner } from '../components/Banner'
+import { DataCareBanners } from '../components/DataCareBanners'
 import { InstallHint } from '../components/InstallHint'
 import { useProjects } from '../lib/ProjectsContext'
 import {
@@ -13,7 +14,7 @@ import {
 const heroSrc = `${import.meta.env.BASE_URL}hero-knit.svg`
 
 export function HomePage() {
-  const { active } = useProjects()
+  const { active, state } = useProjects()
 
   const nextStep = active ? currentPatternStep(active) : null
   const showResume = Boolean(active && (active.rows > 0 || active.stitches > 0))
@@ -88,6 +89,7 @@ export function HomePage() {
         )}
 
         <InstallHint />
+        <DataCareBanners state={state} />
       </div>
       <img
         className="hero__visual"

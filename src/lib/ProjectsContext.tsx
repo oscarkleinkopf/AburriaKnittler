@@ -8,8 +8,10 @@ import {
 } from 'react'
 import type { AnalyzeResult } from './analyze'
 import {
+  applyAnalysisToCounters,
   createId,
   createProject,
+  duplicateProject,
   loadState,
   parseBackupJson,
   pushHistory,
@@ -29,6 +31,7 @@ type ProjectsApi = {
   active: Project | null
   setActive: (id: string) => void
   addProject: (name: string, notes?: string) => Project
+  duplicateProject: (id: string) => Project | null
   updateProject: (id: string, patch: Partial<Project>) => void
   deleteProject: (id: string) => void
   bumpRows: (delta: number) => void
@@ -37,6 +40,7 @@ type ProjectsApi = {
   resetCounters: () => void
   setMarkerEvery: (n: number) => void
   saveAnalysis: (result: AnalyzeResult) => void
+  applyAnalysisToCounters: (result: AnalyzeResult) => void
   setPhoto: (dataUrl: string | null) => void
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
@@ -123,6 +127,22 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return project
   }, [])
 
+  const duplicateById = useCallback((id: string) => {
+    const source = memory.projects.find((p) => p.id === id)
+    if (!source) return null
+    const copy = duplicateProject(
+      source,
+      memory.projects.map((p) => p.name),
+    )
+    memory = {
+      ...memory,
+      activeId: copy.id,
+      projects: [copy, ...memory.projects],
+    }
+    emit()
+    return copy
+  }, [])
+
   const updateProject = useCallback((id: string, patch: Partial<Project>) => {
     memory = {
       ...memory,
@@ -174,6 +194,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const saveAnalysis = useCallback((result: AnalyzeResult) => {
     patchActive((p) => ({ ...p, lastAnalysis: result }))
+  }, [])
+
+  const applyAnalysis = useCallback((result: AnalyzeResult) => {
+    patchActive((p) => applyAnalysisToCounters(p, result))
   }, [])
 
   const setPhoto = useCallback((dataUrl: string | null) => {
@@ -274,6 +298,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       active,
       setActive,
       addProject,
+      duplicateProject: duplicateById,
       updateProject,
       deleteProject,
       bumpRows,
@@ -282,6 +307,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       resetCounters,
       setMarkerEvery,
       saveAnalysis,
+      applyAnalysisToCounters: applyAnalysis,
       setPhoto,
       replaceState,
       importBackup,
@@ -298,6 +324,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       active,
       setActive,
       addProject,
+      duplicateById,
       updateProject,
       deleteProject,
       bumpRows,
@@ -306,6 +333,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       resetCounters,
       setMarkerEvery,
       saveAnalysis,
+      applyAnalysis,
       setPhoto,
       replaceState,
       importBackup,

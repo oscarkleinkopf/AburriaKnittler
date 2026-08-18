@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyAnalysisToCounters,
   backupToJson,
   createProject,
   currentPatternStep,
+  duplicateProject,
   formatClock,
   formatDuration,
   groupSessionsByDay,
+  nextCopyName,
   parseBackupJson,
   pushHistory,
   sortProjectsByRecent,
@@ -162,6 +165,71 @@ describe('updatePatternStep', () => {
       instruction: '2 juntos',
     })
     expect(next.patternSteps[0].instruction).toBe('derecho')
+  })
+})
+
+describe('duplicateProject', () => {
+  it('copies pattern and notes, resets counters, and names the copy', () => {
+    const original = createProject('Bufanda')
+    original.rows = 12
+    original.stitches = 8
+    original.notes = 'Lana merina'
+    original.patternSteps = [
+      { id: 's1', row: 10, instruction: 'sisa', done: true },
+    ]
+    original.timerStartedAt = '2026-08-18T10:00:00.000Z'
+    const copy = duplicateProject(original, [original.name])
+    expect(copy.id).not.toBe(original.id)
+    expect(copy.name).toBe('Bufanda (copia)')
+    expect(copy.notes).toBe('Lana merina')
+    expect(copy.rows).toBe(0)
+    expect(copy.stitches).toBe(0)
+    expect(copy.timerStartedAt).toBeNull()
+    expect(copy.patternSteps).toHaveLength(1)
+    expect(copy.patternSteps[0].id).not.toBe('s1')
+    expect(copy.patternSteps[0].done).toBe(false)
+    expect(copy.patternSteps[0].instruction).toBe('sisa')
+  })
+
+  it('increments copy names when (copia) already exists', () => {
+    expect(nextCopyName('Bufanda', ['Bufanda', 'Bufanda (copia)'])).toBe(
+      'Bufanda (copia 2)',
+    )
+  })
+})
+
+describe('applyAnalysisToCounters', () => {
+  it('sets rows and stitches from the analysis and records history', () => {
+    const project = createProject('Muestra')
+    project.rows = 3
+    project.stitches = 2
+    const next = applyAnalysisToCounters(project, {
+      estimatedRows: 40,
+      estimatedStitches: 64,
+      stitchType: 'jersey',
+      patternStructure: '',
+      confidence: 'media',
+      notes: '',
+    })
+    expect(next.rows).toBe(40)
+    expect(next.stitches).toBe(64)
+    expect(next.history[0]).toMatchObject({ rows: 40, stitches: 64 })
+  })
+
+  it('keeps a missing estimate as the current counter value', () => {
+    const project = createProject('Muestra')
+    project.rows = 5
+    project.stitches = 9
+    const next = applyAnalysisToCounters(project, {
+      estimatedRows: 20,
+      estimatedStitches: null,
+      stitchType: '',
+      patternStructure: '',
+      confidence: 'baja',
+      notes: '',
+    })
+    expect(next.rows).toBe(20)
+    expect(next.stitches).toBe(9)
   })
 })
 

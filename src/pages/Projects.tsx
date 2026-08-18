@@ -2,11 +2,18 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
+import { DataCareBanners } from '../components/DataCareBanners'
 import { useProjects } from '../lib/ProjectsContext'
+import {
+  buildStorageReport,
+  formatBytes,
+  markBackupExported,
+} from '../lib/dataCare'
 import {
   compressImageFile,
   downloadBackup,
   formatRelativeDate,
+  getLastSaveResult,
   readBackupFile,
   shareProject,
   sortProjectsByRecent,
@@ -19,6 +26,7 @@ export function ProjectsPage() {
     active,
     setActive,
     addProject,
+    duplicateProject,
     updateProject,
     deleteProject,
     setPhoto,
@@ -36,6 +44,11 @@ export function ProjectsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
+  const save = getLastSaveResult()
+  const storage = buildStorageReport(
+    state,
+    !save.ok && save.reason === 'quota',
+  )
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -71,6 +84,17 @@ export function ProjectsPage() {
     try {
       const dataUrl = await compressImageFile(file)
       setPhoto(dataUrl)
+      const save = getLastSaveResult()
+      if (!save.ok) {
+        setPhoto(null)
+        setMessage(null)
+        setError(
+          save.reason === 'quota'
+            ? 'La foto no cabe en este aparato. Quita otra foto o exporta un respaldo.'
+            : 'No se pudo guardar la foto.',
+        )
+        return
+      }
       setError(null)
       setMessage('Foto guardada en el proyecto.')
     } catch {
@@ -82,6 +106,7 @@ export function ProjectsPage() {
   function onExport() {
     try {
       downloadBackup(state)
+      markBackupExported()
       setError(null)
       setMessage(
         `Respaldo descargado (${state.projects.length} proyecto${state.projects.length === 1 ? '' : 's'}).`,
@@ -90,6 +115,26 @@ export function ProjectsPage() {
       setMessage(null)
       setError('No se pudo crear el archivo de respaldo.')
     }
+  }
+
+  function onDuplicate(projectId: string) {
+    const copy = duplicateProject(projectId)
+    if (!copy) return
+    const save = getLastSaveResult()
+    setEditingId(null)
+    if (!save.ok) {
+      setMessage(null)
+      setError(
+        save.reason === 'quota'
+          ? `«${copy.name}» se creó, pero no cupo en el aparato. Quita una foto.`
+          : `Copia «${copy.name}» lista, pero no se pudo guardar.`,
+      )
+      return
+    }
+    setError(null)
+    setMessage(
+      `Copia «${copy.name}» lista. El contador empieza en 0; el patrón se conserva.`,
+    )
   }
 
   async function onShareProject(projectId: string) {
@@ -158,11 +203,25 @@ export function ProjectsPage() {
         </Banner>
       )}
 
+      <DataCareBanners
+        state={state}
+        onExported={() =>
+          setMessage(
+            `Respaldo descargado (${state.projects.length} proyecto${state.projects.length === 1 ? '' : 's'}).`,
+          )
+        }
+      />
+
       <div className="backup-panel stack">
         <h2 className="section-title">Respaldo</h2>
         <p className="muted">
           Descarga un archivo JSON con todos tus proyectos, o restaura uno
-          guardado antes.
+          guardado antes. Este aparato usa {formatBytes(storage.usedBytes)} de
+          unos {formatBytes(storage.quotaBytes)}
+          {storage.photoCount > 0
+            ? `; las fotos ocupan ${formatBytes(storage.photoBytes)}`
+            : ''}
+          .
         </p>
         <BigButton type="button" variant="secondary" block onClick={onExport}>
           Exportar proyectos (.json)
@@ -224,6 +283,13 @@ export function ProjectsPage() {
             >
               Compartir
             </BigButton>
+            <BigButton
+              type="button"
+              variant="ghost"
+              onClick={() => onDuplicate(active.id)}
+            >
+              Duplicar
+            </BigButton>
             <label className="file-button">
               <input
                 type="file"
@@ -237,11 +303,24 @@ export function ProjectsPage() {
             </label>
           </div>
           {active.photoDataUrl && (
-            <img
-              className="file-pick__preview"
-              src={active.photoDataUrl}
-              alt={`Foto de ${active.name}`}
-            />
+            <>
+              <img
+                className="file-pick__preview"
+                src={active.photoDataUrl}
+                alt={`Foto de ${active.name}`}
+              />
+              <BigButton
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setPhoto(null)
+                  setError(null)
+                  setMessage('Foto quitada del proyecto.')
+                }}
+              >
+                Quitar foto
+              </BigButton>
+            </>
           )}
         </div>
       )}
@@ -373,6 +452,13 @@ export function ProjectsPage() {
                       onClick={() => void onShareProject(p.id)}
                     >
                       Compartir
+                    </BigButton>
+                    <BigButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onDuplicate(p.id)}
+                    >
+                      Duplicar
                     </BigButton>
                     <BigButton
                       type="button"
