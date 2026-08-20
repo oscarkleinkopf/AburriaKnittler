@@ -16,6 +16,7 @@ import {
   loadState,
   parseBackupJson,
   pushHistory,
+  repeatPatternRange as expandPatternRange,
   saveState,
   touch,
   undoLastChange,
@@ -26,6 +27,7 @@ import {
   type PatternStep,
   type Project,
   type ProjectsState,
+  type RepeatRangeResult,
 } from './projects'
 
 type ProjectsApi = {
@@ -52,6 +54,11 @@ type ProjectsApi = {
   markOpened: () => void
   addPatternStep: (row: number, instruction: string) => void
   addPatternSteps: (steps: PatternStep[]) => void
+  repeatPatternRange: (
+    from: number,
+    to: number,
+    times: number,
+  ) => RepeatRangeResult
   togglePatternStep: (stepId: string) => void
   updatePatternStep: (
     stepId: string,
@@ -274,6 +281,21 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     patchActive((p) => appendPatternSteps(p, steps))
   }, [])
 
+  const repeatRange = useCallback(
+    (from: number, to: number, times: number): RepeatRangeResult => {
+      const id = memory.activeId
+      const project = memory.projects.find((p) => p.id === id)
+      if (!project) {
+        return { ok: false, error: 'No hay proyecto activo.' }
+      }
+      const result = expandPatternRange(project.patternSteps, from, to, times)
+      if (!result.ok) return result
+      patchActive((p) => ({ ...p, patternSteps: result.steps }))
+      return result
+    },
+    [],
+  )
+
   const togglePatternStep = useCallback((stepId: string) => {
     patchActive((p) => ({
       ...p,
@@ -353,6 +375,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       markOpened,
       addPatternStep,
       addPatternSteps,
+      repeatPatternRange: repeatRange,
       togglePatternStep,
       updatePatternStep: updateStep,
       removePatternStep,
@@ -383,6 +406,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       markOpened,
       addPatternStep,
       addPatternSteps,
+      repeatRange,
       togglePatternStep,
       updateStep,
       removePatternStep,

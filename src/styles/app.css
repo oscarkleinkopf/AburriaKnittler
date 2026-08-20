@@ -229,6 +229,14 @@
   color: var(--color-danger);
 }
 
+.banner--success {
+  background: rgba(47, 93, 74, 0.18);
+  border-color: var(--color-brand-deep);
+  color: var(--color-brand-deep);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
 .hero {
   min-height: calc(100dvh - 4.5rem);
   display: grid;
@@ -700,6 +708,16 @@
   color: var(--color-warn-ink);
   background: var(--color-accent-soft);
   padding: var(--space-3);
+}
+
+.counter-fs__goal {
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--color-brand-deep);
+  background: rgba(47, 93, 74, 0.18);
+  padding: var(--space-3);
+  border: 2px solid var(--color-brand-deep);
 }
 
 .counter-fs__grid {

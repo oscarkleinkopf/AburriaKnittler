@@ -6,7 +6,9 @@ import { useProjects } from '../lib/ProjectsContext'
 import {
   currentPatternStep,
   parsePatternText,
+  parseRepeatSpec,
   patternStepToSpeech,
+  patternStepsToText,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 
@@ -15,6 +17,7 @@ export function PatternPage() {
     active,
     addPatternStep,
     addPatternSteps,
+    repeatPatternRange,
     togglePatternStep,
     updatePatternStep,
     removePatternStep,
@@ -32,6 +35,14 @@ export function PatternPage() {
   const pasteId = useId()
   const [editRow, setEditRow] = useState('')
   const [editInstruction, setEditInstruction] = useState('')
+  const [repeatText, setRepeatText] = useState('')
+  const [repeatFrom, setRepeatFrom] = useState('')
+  const [repeatTo, setRepeatTo] = useState('')
+  const [repeatTimes, setRepeatTimes] = useState('4')
+  const repeatTextId = useId()
+  const repeatFromId = useId()
+  const repeatToId = useId()
+  const repeatTimesId = useId()
 
   useEffect(() => {
     markOpened()
@@ -87,6 +98,82 @@ export function PatternPage() {
     addPatternSteps(steps)
     setPaste('')
     setMessage(`Añadidas ${steps.length} instrucciones desde el texto.`)
+  }
+
+  function fileSafeName(name: string): string {
+    const slug = name
+      .trim()
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+    return slug || 'patron'
+  }
+
+  async function copyPattern() {
+    if (!active) return
+    const text = patternStepsToText(active.patternSteps)
+    if (!text) {
+      setMessage('Aún no hay patrón para copiar.')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      setMessage('Patrón copiado. Pégalo donde quieras.')
+    } catch {
+      setMessage('No pude copiar. Usa «Descargar texto».')
+    }
+  }
+
+  function downloadPattern() {
+    if (!active) return
+    const text = patternStepsToText(active.patternSteps)
+    if (!text) {
+      setMessage('Aún no hay patrón para exportar.')
+      return
+    }
+    const blob = new Blob([`${text}\n`], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${fileSafeName(active.name)}-patron.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    setMessage('Descargado el patrón en texto.')
+  }
+
+  function applyRepeat(from: number, to: number, times: number) {
+    const result = repeatPatternRange(from, to, times)
+    if (!result.ok) {
+      setMessage(result.error)
+      return
+    }
+    setMessage(
+      `Repetidas filas ${Math.min(from, to)}–${Math.max(from, to)} ${times} veces (+${result.added} pasos).`,
+    )
+  }
+
+  function onRepeatText(e: FormEvent) {
+    e.preventDefault()
+    const spec = parseRepeatSpec(repeatText)
+    if (!spec) {
+      setMessage(
+        'No entendí la repetición. Prueba «filas 10-20, 4 veces» o «10-20 x 4».',
+      )
+      return
+    }
+    applyRepeat(spec.from, spec.to, spec.times)
+    setRepeatText('')
+  }
+
+  function onRepeatForm(e: FormEvent) {
+    e.preventDefault()
+    const from = Number.parseInt(repeatFrom, 10)
+    const to = Number.parseInt(repeatTo, 10)
+    const times = Number.parseInt(repeatTimes, 10)
+    if (![from, to, times].every((n) => Number.isFinite(n))) {
+      setMessage('Indica fila inicial, final y cuántas veces.')
+      return
+    }
+    applyRepeat(from, to, times)
   }
 
   function startEdit(id: string) {
@@ -223,6 +310,104 @@ export function PatternPage() {
         </div>
         <BigButton type="submit" variant="ghost" block disabled={!paste.trim()}>
           Añadir desde texto
+        </BigButton>
+      </form>
+
+      <div className="stack">
+        <h2 className="section-title">Exportar patrón</h2>
+        <p className="muted">
+          Copia o descarga el mismo formato que puedes pegar luego.
+        </p>
+        <div className="row-actions">
+          <BigButton
+            type="button"
+            variant="secondary"
+            onClick={() => void copyPattern()}
+            disabled={active.patternSteps.length === 0}
+          >
+            Copiar texto
+          </BigButton>
+          <BigButton
+            type="button"
+            variant="ghost"
+            onClick={downloadPattern}
+            disabled={active.patternSteps.length === 0}
+          >
+            Descargar texto
+          </BigButton>
+        </div>
+      </div>
+
+      <form className="stack" onSubmit={onRepeatText}>
+        <h2 className="section-title">Repetir un tramo</h2>
+        <p className="muted">
+          Ejemplo: «filas 10-20, 4 veces» o «10-20 x 4». Copia esas filas a
+          continuación y desplaza lo que vaya después.
+        </p>
+        <div className="field">
+          <label htmlFor={repeatTextId}>Repetición en texto</label>
+          <input
+            id={repeatTextId}
+            value={repeatText}
+            onChange={(e) => setRepeatText(e.target.value)}
+            placeholder="filas 10-20, 4 veces"
+          />
+        </div>
+        <BigButton
+          type="submit"
+          variant="ghost"
+          block
+          disabled={!repeatText.trim() || active.patternSteps.length === 0}
+        >
+          Repetir desde el texto
+        </BigButton>
+      </form>
+
+      <form className="stack" onSubmit={onRepeatForm}>
+        <div className="field">
+          <label htmlFor={repeatFromId}>Desde la fila</label>
+          <input
+            id={repeatFromId}
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={repeatFrom}
+            onChange={(e) => setRepeatFrom(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={repeatToId}>Hasta la fila</label>
+          <input
+            id={repeatToId}
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={repeatTo}
+            onChange={(e) => setRepeatTo(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={repeatTimesId}>Veces (incluye la original)</label>
+          <input
+            id={repeatTimesId}
+            type="number"
+            min={2}
+            max={40}
+            inputMode="numeric"
+            value={repeatTimes}
+            onChange={(e) => setRepeatTimes(e.target.value)}
+            required
+          />
+        </div>
+        <BigButton
+          type="submit"
+          variant="secondary"
+          block
+          disabled={active.patternSteps.length === 0}
+        >
+          Repetir ese tramo
         </BigButton>
       </form>
 

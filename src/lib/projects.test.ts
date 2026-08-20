@@ -11,15 +11,22 @@ import {
   nextCopyName,
   parseBackupJson,
   parsePatternText,
+  parseRepeatSpec,
+  patternStepsToText,
   pushHistory,
+  repeatPatternRange,
   sortProjectsByRecent,
+  structureToPatternSteps,
   undoLastChange,
   updatePatternStep,
   goalProgress,
   isLongRunningSession,
+  justReachedGoal,
   LONG_SESSION_MS,
+  MAX_PATTERN_STEPS,
   namedMarkerAt,
   type KnitSession,
+  type PatternStep,
   type ProjectsState,
 } from './projects'
 
@@ -312,6 +319,143 @@ describe('parsePatternText', () => {
   it('numbers plain lines from the start row', () => {
     const steps = parsePatternText('lazada\n2 juntos', 20)
     expect(steps.map((s) => s.row)).toEqual([20, 21])
+  })
+})
+
+describe('justReachedGoal', () => {
+  it('fires when the counter crosses the target', () => {
+    expect(justReachedGoal(79, 80, 80)).toBe(true)
+    expect(justReachedGoal(75, 85, 80)).toBe(true)
+    expect(justReachedGoal(80, 81, 80)).toBe(false)
+    expect(justReachedGoal(80, 79, 80)).toBe(false)
+    expect(justReachedGoal(10, 11, 0)).toBe(false)
+  })
+})
+
+describe('structureToPatternSteps', () => {
+  it('ignores empty or placeholder structure', () => {
+    expect(structureToPatternSteps('')).toEqual([])
+    expect(structureToPatternSteps('No determinado')).toEqual([])
+  })
+
+  it('keeps numbered rows from the analysis', () => {
+    const steps = structureToPatternSteps(
+      'Fila 8: elástico\nFila 9: jersey',
+    )
+    expect(
+      steps.map((s) => ({ row: s.row, instruction: s.instruction })),
+    ).toEqual([
+      { row: 8, instruction: 'elástico' },
+      { row: 9, instruction: 'jersey' },
+    ])
+  })
+
+  it('splits a paragraph into sequential steps', () => {
+    const steps = structureToPatternSteps(
+      'Cuerpo: 80 vueltas. Manga: 40 vueltas.',
+      1,
+    )
+    expect(steps.map((s) => s.instruction)).toEqual([
+      'Cuerpo: 80 vueltas',
+      'Manga: 40 vueltas',
+    ])
+    expect(steps.map((s) => s.row)).toEqual([1, 2])
+  })
+})
+
+describe('patternStepsToText', () => {
+  it('round-trips with parsePatternText', () => {
+    const original = parsePatternText('Fila 12: 2 juntos\n13: derecho')
+    const text = patternStepsToText(original)
+    expect(text).toBe('Fila 12: 2 juntos\nFila 13: derecho')
+    const again = parsePatternText(text)
+    expect(again.map((s) => ({ row: s.row, instruction: s.instruction }))).toEqual(
+      [
+        { row: 12, instruction: '2 juntos' },
+        { row: 13, instruction: 'derecho' },
+      ],
+    )
+  })
+})
+
+describe('parseRepeatSpec', () => {
+  it('reads Spanish and compact forms', () => {
+    expect(parseRepeatSpec('filas 10-20, 4 veces')).toEqual({
+      from: 10,
+      to: 20,
+      times: 4,
+    })
+    expect(parseRepeatSpec('10-20 x 4')).toEqual({
+      from: 10,
+      to: 20,
+      times: 4,
+    })
+    expect(parseRepeatSpec('repetir 10–20 4 veces')).toEqual({
+      from: 10,
+      to: 20,
+      times: 4,
+    })
+    expect(parseRepeatSpec('nope')).toBeNull()
+  })
+})
+
+describe('repeatPatternRange', () => {
+  function steps(
+    rows: Array<[number, string]>,
+  ): PatternStep[] {
+    return rows.map(([row, instruction], i) => ({
+      id: `s${i}`,
+      row,
+      instruction,
+      done: false,
+    }))
+  }
+
+  it('copies the block and shifts later rows', () => {
+    const result = repeatPatternRange(
+      steps([
+        [1, 'inicio'],
+        [10, 'A'],
+        [11, 'B'],
+        [12, 'C'],
+        [21, 'cierre'],
+      ]),
+      10,
+      12,
+      3,
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.added).toBe(6)
+    expect(
+      result.steps.map((s) => ({ row: s.row, instruction: s.instruction })),
+    ).toEqual([
+      { row: 1, instruction: 'inicio' },
+      { row: 10, instruction: 'A' },
+      { row: 11, instruction: 'B' },
+      { row: 12, instruction: 'C' },
+      { row: 13, instruction: 'A' },
+      { row: 14, instruction: 'B' },
+      { row: 15, instruction: 'C' },
+      { row: 16, instruction: 'A' },
+      { row: 17, instruction: 'B' },
+      { row: 18, instruction: 'C' },
+      { row: 21 + 2 * 3, instruction: 'cierre' },
+    ])
+  })
+
+  it('rejects an empty range and too few repeats', () => {
+    const existing = steps([[5, 'solo']])
+    expect(repeatPatternRange(existing, 10, 20, 4).ok).toBe(false)
+    expect(repeatPatternRange(existing, 5, 5, 1).ok).toBe(false)
+  })
+
+  it('refuses to exceed the step cap', () => {
+    const many = steps(
+      Array.from({ length: MAX_PATTERN_STEPS - 1 }, (_, i) => [i + 1, 'x']),
+    )
+    const result = repeatPatternRange(many, 1, MAX_PATTERN_STEPS - 1, 3)
+    expect(result.ok).toBe(false)
   })
 })
 
