@@ -74,17 +74,17 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 ## Características
 
-1. **Proyectos** — varios tejidos; duplicar (otra talla) conserva patrón y foto
+1. **Proyectos** — varios tejidos; buscar por nombre; archivar (y restaurar); duplicar (otra talla) conserva patrón y foto
 2. **Respaldo** — exportar / importar JSON; aviso si hace tiempo o el aparato va lleno
 3. **Patrón por filas** — instrucciones por fila; pegar o exportar texto; repetir un tramo (p. ej. filas 10–20, 4 veces); editar; leer en voz alta
 4. **Sesiones** — temporizador; si lleva horas, pregunta si sigue; historial por día
-5. **Retomar** — al abrir, recuerda la vuelta, la meta y el siguiente paso
+5. **Retomar** — al abrir, si ayer estabas tejiendo, entra en el contador; recuerda la vuelta, la meta y el siguiente paso
 6. **Alto contraste** — botón Aa → Contraste
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
 8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10; deshacer el último toque
 9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
 10. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; pasar al contador, a la meta o al patrón; voz alta
-11. **Contador** — vueltas + puntos, meta (aviso al llegar, con deshacer), marcadores con nombre, pantalla completa; la pantalla no se apaga al tejer
+11. **Contador** — vueltas + puntos, meta (aviso al llegar, con deshacer), marcadores con nombre, pitido suave, leer el paso al completar la vuelta, pantalla completa; la pantalla no se apaga al tejer
 12. **Accesible** — Aa (letra, oscuro, contraste), botones grandes, márgenes seguros
 13. **PWA** — instalable; guía «Añadir a inicio» en la home
 

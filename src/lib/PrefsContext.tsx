@@ -38,6 +38,7 @@ type PrefsApi = {
   alerts: AlertPrefs
   setAlertSound: (on: boolean) => void
   setAlertVibrate: (on: boolean) => void
+  setSpeakStep: (on: boolean) => void
 }
 
 const PrefsContext = createContext<PrefsApi | null>(null)
@@ -108,6 +109,10 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     setAlerts((a) => ({ ...a, vibrate: on }))
   }, [])
 
+  const setSpeakStep = useCallback((on: boolean) => {
+    setAlerts((a) => ({ ...a, speakStep: on }))
+  }, [])
+
   const api = useMemo(
     () => ({
       fontScale,
@@ -121,6 +126,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       alerts,
       setAlertSound,
       setAlertVibrate,
+      setSpeakStep,
     }),
     [
       fontScale,
@@ -134,6 +140,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       alerts,
       setAlertSound,
       setAlertVibrate,
+      setSpeakStep,
     ],
   )
 

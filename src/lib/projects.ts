@@ -49,6 +49,8 @@ export type Project = {
   timerStartedAt: string | null
   /** Última vez que se abrió el proyecto (retomar) */
   lastOpenedAt: string | null
+  /** ISO si está archivado (oculto de la lista principal) */
+  archivedAt: string | null
 }
 
 export type ProjectsState = {
@@ -93,6 +95,7 @@ export function createProject(name: string, notes = ''): Project {
     sessions: [],
     timerStartedAt: null,
     lastOpenedAt: now,
+    archivedAt: null,
   }
 }
 
@@ -136,11 +139,18 @@ export function loadState(): ProjectsState {
     ) {
       return emptyState()
     }
-    const activeExists = parsed.projects.some((p) => p.id === parsed.activeId)
+    const projects = parsed.projects.map(normalizeProject)
+    const activeExists = projects.some((p) => p.id === parsed.activeId)
+    let activeId = activeExists ? parsed.activeId : projects[0].id
+    const active = projects.find((p) => p.id === activeId)
+    if (active?.archivedAt) {
+      const open = projects.find((p) => !p.archivedAt)
+      if (open) activeId = open.id
+    }
     return {
       version: 1,
-      activeId: activeExists ? parsed.activeId : parsed.projects[0].id,
-      projects: parsed.projects.map(normalizeProject),
+      activeId,
+      projects,
     }
   } catch {
     return emptyState()
@@ -204,6 +214,8 @@ function normalizeProject(p: Project): Project {
       typeof p.lastOpenedAt === 'string' && p.lastOpenedAt
         ? p.lastOpenedAt
         : p.updatedAt || null,
+    archivedAt:
+      typeof p.archivedAt === 'string' && p.archivedAt ? p.archivedAt : null,
   }
 }
 
@@ -839,6 +851,117 @@ export function sortProjectsByRecent(projects: Project[]): Project[] {
   })
 }
 
+export function isArchived(project: Project): boolean {
+  return Boolean(project.archivedAt)
+}
+
+export function openProjects(projects: Project[]): Project[] {
+  return projects.filter((p) => !p.archivedAt)
+}
+
+export function archivedProjects(projects: Project[]): Project[] {
+  return projects.filter((p) => Boolean(p.archivedAt))
+}
+
+export function foldSearch(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+}
+
+export function projectMatchesQuery(project: Project, query: string): boolean {
+  const q = foldSearch(query.trim())
+  if (!q) return true
+  return (
+    foldSearch(project.name).includes(q) || foldSearch(project.notes).includes(q)
+  )
+}
+
+function isoOnLocalDay(iso: string | null | undefined, keys: Set<string>): boolean {
+  if (!iso) return false
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return false
+  return keys.has(localDayKey(d))
+}
+
+/** Si ayer o hoy estabas tejiendo, al abrir la app ir al contador. */
+export function shouldOpenCounterOnLaunch(
+  project: Project | null,
+  now = new Date(),
+): boolean {
+  if (!project || project.archivedAt) return false
+  const knitted =
+    project.rows > 0 ||
+    project.stitches > 0 ||
+    project.sessions.length > 0 ||
+    Boolean(project.timerStartedAt)
+  if (!knitted) return false
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const days = new Set([localDayKey(now), localDayKey(yesterday)])
+  const latestSession = project.sessions[0]?.endedAt
+  return (
+    isoOnLocalDay(project.lastOpenedAt, days) ||
+    isoOnLocalDay(project.timerStartedAt, days) ||
+    isoOnLocalDay(latestSession, days)
+  )
+}
+
+export const LANDING_SESSION_KEY = 'aburriaknittler.landedSession'
+
+export function consumeFirstLandingThisSession(
+  storage?: Pick<Storage, 'getItem' | 'setItem'> | null,
+): boolean {
+  const store =
+    storage === undefined
+      ? typeof sessionStorage === 'undefined'
+        ? null
+        : sessionStorage
+      : storage
+  if (!store) return false
+  try {
+    if (store.getItem(LANDING_SESSION_KEY) === '1') return false
+    store.setItem(LANDING_SESSION_KEY, '1')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function archiveProjectInState(
+  state: ProjectsState,
+  id: string,
+  at = new Date().toISOString(),
+): ProjectsState {
+  const target = state.projects.find((p) => p.id === id)
+  if (!target || target.archivedAt) return state
+  if (openProjects(state.projects).length <= 1) return state
+  const projects = state.projects.map((p) =>
+    p.id === id ? { ...p, archivedAt: at, updatedAt: at } : p,
+  )
+  let activeId = state.activeId
+  if (activeId === id) {
+    activeId = openProjects(projects)[0]?.id ?? activeId
+  }
+  return { ...state, projects, activeId }
+}
+
+export function restoreProjectInState(
+  state: ProjectsState,
+  id: string,
+): ProjectsState {
+  const target = state.projects.find((p) => p.id === id)
+  if (!target?.archivedAt) return state
+  const now = new Date().toISOString()
+  const projects = state.projects.map((p) =>
+    p.id === id
+      ? { ...p, archivedAt: null, lastOpenedAt: now, updatedAt: now }
+      : p,
+  )
+  return { ...state, projects, activeId: id }
+}
+
 export function updatePatternStep(
   project: Project,
   stepId: string,
@@ -891,6 +1014,7 @@ export function duplicateProject(
     history: [],
     sessions: [],
     timerStartedAt: null,
+    archivedAt: null,
     patternSteps: project.patternSteps.map((s) => ({
       ...s,
       id: createId(),

@@ -10,6 +10,7 @@ import type { AnalyzeResult } from './analyze'
 import {
   appendPatternSteps,
   applyAnalysisToCounters,
+  archiveProjectInState,
   createId,
   createProject,
   duplicateProject,
@@ -17,6 +18,7 @@ import {
   parseBackupJson,
   pushHistory,
   repeatPatternRange as expandPatternRange,
+  restoreProjectInState,
   saveState,
   touch,
   undoLastChange,
@@ -37,6 +39,8 @@ type ProjectsApi = {
   addProject: (name: string, notes?: string) => Project
   duplicateProject: (id: string) => Project | null
   updateProject: (id: string, patch: Partial<Project>) => void
+  archiveProject: (id: string) => void
+  restoreProject: (id: string) => void
   deleteProject: (id: string) => void
   bumpRows: (delta: number) => void
   bumpStitches: (delta: number) => void
@@ -163,6 +167,16 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         p.id === id ? touch({ ...p, ...patch, id: p.id }) : p,
       ),
     }
+    emit()
+  }, [])
+
+  const archiveById = useCallback((id: string) => {
+    memory = archiveProjectInState(memory, id)
+    emit()
+  }, [])
+
+  const restoreById = useCallback((id: string) => {
+    memory = restoreProjectInState(memory, id)
     emit()
   }, [])
 
@@ -358,6 +372,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addProject,
       duplicateProject: duplicateById,
       updateProject,
+      archiveProject: archiveById,
+      restoreProject: restoreById,
       deleteProject,
       bumpRows,
       bumpStitches,
@@ -389,6 +405,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addProject,
       duplicateById,
       updateProject,
+      archiveById,
+      restoreById,
       deleteProject,
       bumpRows,
       bumpStitches,

@@ -10,11 +10,13 @@ export type ColorTheme = 'light' | 'dark'
 export type AlertPrefs = {
   sound: boolean
   vibrate: boolean
+  speakStep: boolean
 }
 
 export const DEFAULT_ALERT_PREFS: AlertPrefs = {
   sound: true,
   vibrate: true,
+  speakStep: false,
 }
 
 export function loadFontScale(): FontScale {
@@ -128,6 +130,7 @@ export function loadAlertPrefs(): AlertPrefs {
     return {
       sound: parsed.sound !== false,
       vibrate: parsed.vibrate !== false,
+      speakStep: parsed.speakStep === true,
     }
   } catch {
     return { ...DEFAULT_ALERT_PREFS }
