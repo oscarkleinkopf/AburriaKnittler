@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type Tone = 'info' | 'warn' | 'error'
+type Tone = 'info' | 'warn' | 'error' | 'success'
 
 type Props = {
   children: ReactNode

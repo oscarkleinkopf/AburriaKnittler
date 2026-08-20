@@ -13,6 +13,7 @@ import {
   formatRelativeDate,
   goalProgress,
   groupSessionsByDay,
+  justReachedGoal,
   namedMarkerAt,
   patternStepToSpeech,
   sessionMsToday,
@@ -22,6 +23,37 @@ import {
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
 import { useWakeLock } from '../lib/useWakeLock'
+
+function playGoalBeep() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const now = ctx.currentTime
+    const gain = ctx.createGain()
+    gain.gain.value = 0.1
+    gain.connect(ctx.destination)
+    const first = ctx.createOscillator()
+    first.type = 'sine'
+    first.frequency.value = 660
+    first.connect(gain)
+    first.start(now)
+    first.stop(now + 0.22)
+    const second = ctx.createOscillator()
+    second.type = 'sine'
+    second.frequency.value = 880
+    second.connect(gain)
+    second.start(now + 0.2)
+    second.stop(now + 0.5)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55)
+    window.setTimeout(() => void ctx.close(), 700)
+  } catch {
+    // audio optional
+  }
+}
 
 function playMarkerBeep() {
   try {
@@ -117,6 +149,7 @@ export function CounterPage() {
   const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
   const [bump, setBump] = useState(false)
   const [markerHit, setMarkerHit] = useState<string | null>(null)
+  const [goalHit, setGoalHit] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [showAllSessions, setShowAllSessions] = useState(false)
@@ -192,6 +225,7 @@ export function CounterPage() {
   useEffect(() => {
     prevRows.current = active?.rows ?? 0
     setMarkerHit(null)
+    setGoalHit(false)
   }, [active?.id])
 
   useEffect(() => {
@@ -199,20 +233,31 @@ export function CounterPage() {
     const prev = prevRows.current
     const next = active.rows
     prevRows.current = next
-    if (next <= prev) return
+    if (next <= prev) {
+      if (active.targetRows <= 0 || next < active.targetRows) {
+        setGoalHit(false)
+      }
+      return
+    }
     const named = namedMarkerAt(active, next)
     const every =
       active.markerEvery > 0 && next % active.markerEvery === 0
-    if (!named && !every) return
-    const bits = [
-      named ? named.label : null,
-      every ? `cada ${active.markerEvery}` : null,
-    ].filter(Boolean)
-    setMarkerHit(`Marcador: vuelta ${next} (${bits.join(' · ')})`)
-    if (alerts.sound) playMarkerBeep()
-    if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
-    window.setTimeout(() => setMarkerHit(null), 2500)
-  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, alerts.sound, alerts.vibrate])
+    if (named || every) {
+      const bits = [
+        named ? named.label : null,
+        every ? `cada ${active.markerEvery}` : null,
+      ].filter(Boolean)
+      setMarkerHit(`Marcador: vuelta ${next} (${bits.join(' · ')})`)
+      if (alerts.sound) playMarkerBeep()
+      if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
+      window.setTimeout(() => setMarkerHit(null), 2500)
+    }
+    if (justReachedGoal(prev, next, active.targetRows)) {
+      setGoalHit(true)
+      if (alerts.sound) playGoalBeep()
+      if (alerts.vibrate) vibrateBrief([80, 50, 80, 50, 140])
+    }
+  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, active?.targetRows, alerts.sound, alerts.vibrate])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -268,6 +313,31 @@ export function CounterPage() {
           now={now}
           onStop={stopTimer}
         />
+
+        {goalHit && (
+          <Banner tone="success" role="alert">
+            <span>
+              Meta alcanzada: vuelta {active.rows} de {active.targetRows}.
+            </span>
+            <span className="banner__actions">
+              <BigButton
+                type="button"
+                variant="secondary"
+                onClick={onUndo}
+                disabled={active.history.length === 0}
+              >
+                Deshacer
+              </BigButton>
+              <BigButton
+                type="button"
+                variant="ghost"
+                onClick={() => setGoalHit(false)}
+              >
+                Entendido
+              </BigButton>
+            </span>
+          </Banner>
+        )}
 
         {markerHit && (
           <Banner tone="info" role="alert">
@@ -642,6 +712,11 @@ export function CounterPage() {
               </p>
             )
           })()}
+          {goalHit && (
+            <p className="counter-fs__goal" role="alert">
+              Meta alcanzada: {active.rows} de {active.targetRows}
+            </p>
+          )}
           {markerHit && (
             <p className="counter-fs__marker" role="alert">
               {markerHit}

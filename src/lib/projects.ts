@@ -61,7 +61,7 @@ const STORAGE_KEY = 'aburriaknittler.projects.v1'
 const LEGACY_ROW_KEY = 'aburriaknittler.rowCount'
 const MAX_HISTORY = 40
 const MAX_SESSIONS = 80
-const MAX_PATTERN_STEPS = 200
+export const MAX_PATTERN_STEPS = 200
 const MAX_NAMED_MARKERS = 40
 /** Sesión en curso más de 3 h: preguntar si sigue. */
 export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
@@ -324,6 +324,153 @@ export function appendPatternSteps(
       MAX_PATTERN_STEPS,
     ),
   }
+}
+
+const PLACEHOLDER_STRUCTURE = /^(no determinado|n\/d|n\.?\s*d\.?|-|—|–)$/i
+
+function splitStructureChunks(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length > 1) return lines
+  const numbered = text
+    .split(/(?=\b\d+[.)]\s)/)
+    .map((s) => s.replace(/^\d+[.)]\s*/, '').trim())
+    .filter((s) => s.length > 1)
+  if (numbered.length > 1) return numbered
+  return text
+    .split(/[.;]\s+/)
+    .map((s) => s.replace(/[.;]+$/g, '').trim())
+    .filter((s) => s.length > 2)
+}
+
+/** Convierte la estructura del análisis en pasos de patrón. */
+export function structureToPatternSteps(
+  text: string,
+  startRow = 1,
+): PatternStep[] {
+  const trimmed = text.trim()
+  if (!trimmed || PLACEHOLDER_STRUCTURE.test(trimmed)) return []
+  const lines = trimmed.split(/\r?\n/)
+  const hasExplicitNumbers = lines.some((raw) => {
+    const line = raw.trim()
+    return NUMBERED_LINE.test(line) || FILA_SPACE_LINE.test(line)
+  })
+  if (hasExplicitNumbers) {
+    return parsePatternText(trimmed, startRow)
+  }
+  const chunks = splitStructureChunks(trimmed)
+  if (chunks.length === 0) return []
+  const start = Math.max(1, Math.round(startRow) || 1)
+  return chunks.slice(0, MAX_PATTERN_STEPS).map((instruction, i) => ({
+    id: createId(),
+    row: start + i,
+    instruction,
+    done: false,
+  }))
+}
+
+/** Texto pegable: inverso de parsePatternText. */
+export function patternStepsToText(steps: PatternStep[]): string {
+  return [...steps]
+    .sort((a, b) => a.row - b.row || a.instruction.localeCompare(b.instruction))
+    .map((s) => `Fila ${s.row}: ${s.instruction}`)
+    .join('\n')
+}
+
+export type RepeatSpec = {
+  from: number
+  to: number
+  times: number
+}
+
+/** «filas 10-20, 4 veces», «10-20 x 4», «repetir 10–20 4 veces». */
+export function parseRepeatSpec(text: string): RepeatSpec | null {
+  const t = text.trim().replace(/,/g, ' ').replace(/\s+/g, ' ')
+  if (!t) return null
+  const match = t.match(
+    /(?:(?:filas?|vueltas?|repetir)\s+)?(\d+)\s*(?:[-–—]|a)\s*(\d+)(?:\s*(?:x|×|\*|por)\s*|\s+)(\d+)(?:\s*veces?)?/i,
+  )
+  if (!match) return null
+  const from = Number.parseInt(match[1], 10)
+  const to = Number.parseInt(match[2], 10)
+  const times = Number.parseInt(match[3], 10)
+  if (![from, to, times].every((n) => Number.isFinite(n))) return null
+  return { from, to, times }
+}
+
+export type RepeatRangeResult =
+  | { ok: true; steps: PatternStep[]; added: number }
+  | { ok: false; error: string }
+
+/** Copia el bloque de filas from–to, `times` veces, y desplaza lo que va después. */
+export function repeatPatternRange(
+  steps: PatternStep[],
+  fromRow: number,
+  toRow: number,
+  times: number,
+): RepeatRangeResult {
+  const a = Math.max(0, Math.round(fromRow))
+  const b = Math.max(0, Math.round(toRow))
+  const from = Math.min(a, b)
+  const to = Math.max(a, b)
+  const repeats = Math.round(times)
+  if (!Number.isFinite(repeats) || repeats < 2) {
+    return { ok: false, error: 'Indica al menos 2 repeticiones.' }
+  }
+  if (repeats > 40) {
+    return { ok: false, error: 'Como mucho 40 repeticiones, para no llenar el patrón.' }
+  }
+  const block = steps.filter((s) => s.row >= from && s.row <= to)
+  if (block.length === 0) {
+    return {
+      ok: false,
+      error: `No hay instrucciones entre las filas ${from} y ${to}.`,
+    }
+  }
+  const extra = repeats - 1
+  const added = extra * block.length
+  if (steps.length + added > MAX_PATTERN_STEPS) {
+    return {
+      ok: false,
+      error: `Eso superaría el máximo de ${MAX_PATTERN_STEPS} pasos. Quita algunas o repite menos veces.`,
+    }
+  }
+  const span = to - from + 1
+  const before = steps.filter((s) => s.row < from)
+  const after = steps
+    .filter((s) => s.row > to)
+    .map((s) => ({ ...s, row: s.row + extra * span }))
+  const copies: PatternStep[] = []
+  for (let i = 1; i < repeats; i += 1) {
+    for (const step of block) {
+      copies.push({
+        id: createId(),
+        row: step.row + i * span,
+        instruction: step.instruction,
+        done: false,
+      })
+    }
+  }
+  return {
+    ok: true,
+    steps: [...before, ...block, ...copies, ...after],
+    added,
+  }
+}
+
+export function justReachedGoal(
+  prevRows: number,
+  nextRows: number,
+  targetRows: number,
+): boolean {
+  return (
+    targetRows > 0 &&
+    nextRows > prevRows &&
+    prevRows < targetRows &&
+    nextRows >= targetRows
+  )
 }
 
 export function namedMarkerAt(

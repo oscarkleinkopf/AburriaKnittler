@@ -14,6 +14,7 @@ import {
   analysisHasCounters,
   compressImageFile,
   getLastSaveResult,
+  structureToPatternSteps,
 } from '../lib/projects'
 import {
   analysisToSpeech,
@@ -55,8 +56,14 @@ function emptyDraft(): AnalyzeResult {
 }
 
 export function AnalyzePage() {
-  const { active, saveAnalysis, setPhoto, applyAnalysisToCounters } =
-    useProjects()
+  const {
+    active,
+    saveAnalysis,
+    setPhoto,
+    applyAnalysisToCounters,
+    setTargetRows,
+    addPatternSteps,
+  } = useProjects()
   const online = useOnline()
   const gemini = hasGeminiKey()
   const inputId = useId()
@@ -258,6 +265,43 @@ export function AnalyzePage() {
     )
   }
 
+  function applyAsGoal() {
+    if (!active || !result || result.estimatedRows == null) return
+    const n = Math.max(0, Math.round(result.estimatedRows))
+    if (n <= 0) {
+      setSaveMsg('Las filas estimadas no sirven como meta.')
+      return
+    }
+    if (active.targetRows === n) {
+      setSaveMsg(`La meta ya es ${n} vueltas.`)
+      return
+    }
+    setTargetRows(n)
+    setSaveMsg(`Meta del contador: ${n} vueltas.`)
+  }
+
+  function applyStructureAsPattern() {
+    if (!active || !result) return
+    const start = Math.max(1, active.rows || 1)
+    const steps = structureToPatternSteps(result.patternStructure, start)
+    if (steps.length === 0) {
+      setSaveMsg(
+        'No pude sacar filas de la estructura. Escríbela con una por línea o pégala en Patrón.',
+      )
+      return
+    }
+    if (active.patternSteps.length > 0) {
+      const ok = window.confirm(
+        `El patrón ya tiene ${active.patternSteps.length} pasos. ¿Añadir ${steps.length} más desde el análisis?`,
+      )
+      if (!ok) return
+    }
+    addPatternSteps(steps)
+    setSaveMsg(
+      `Añadidas ${steps.length} instrucciones al patrón (desde la fila ${steps[0].row}).`,
+    )
+  }
+
   function toggleSpeak() {
     if (!result) return
     if (speaking) {
@@ -439,6 +483,26 @@ export function AnalyzePage() {
                     Usar en el contador
                   </BigButton>
                 )}
+                {active && result.estimatedRows != null && (
+                  <BigButton
+                    type="button"
+                    variant="secondary"
+                    onClick={applyAsGoal}
+                  >
+                    Usar como meta
+                  </BigButton>
+                )}
+                {active &&
+                  structureToPatternSteps(result.patternStructure).length >
+                    0 && (
+                    <BigButton
+                      type="button"
+                      variant="secondary"
+                      onClick={applyStructureAsPattern}
+                    >
+                      Usar como patrón
+                    </BigButton>
+                  )}
                 <BigButton type="button" variant="secondary" onClick={startEdit}>
                   Corregir a mano
                 </BigButton>
