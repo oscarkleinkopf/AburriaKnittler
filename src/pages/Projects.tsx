@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
@@ -14,6 +14,9 @@ import {
   downloadBackup,
   formatRelativeDate,
   getLastSaveResult,
+  openProjects,
+  archivedProjects,
+  projectMatchesQuery,
   readBackupFile,
   shareProject,
   sortProjectsByRecent,
@@ -28,6 +31,8 @@ export function ProjectsPage() {
     addProject,
     duplicateProject,
     updateProject,
+    archiveProject,
+    restoreProject,
     deleteProject,
     setPhoto,
     importBackup,
@@ -44,11 +49,25 @@ export function ProjectsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
+  const [query, setQuery] = useState('')
+  const searchId = useId()
   const save = getLastSaveResult()
   const storage = buildStorageReport(
     state,
     !save.ok && save.reason === 'quota',
   )
+  const openCount = openProjects(state.projects).length
+  const visibleOpen = useMemo(() => {
+    return sortProjectsByRecent(openProjects(state.projects)).filter((p) =>
+      projectMatchesQuery(p, query),
+    )
+  }, [state.projects, query])
+  const visibleArchived = useMemo(() => {
+    return sortProjectsByRecent(archivedProjects(state.projects)).filter((p) =>
+      projectMatchesQuery(p, query),
+    )
+  }, [state.projects, query])
+  const archivedCount = archivedProjects(state.projects).length
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -135,6 +154,19 @@ export function ProjectsPage() {
     setMessage(
       `Copia «${copy.name}» lista. El contador empieza en 0; el patrón se conserva.`,
     )
+  }
+
+  function onArchive(projectId: string, name: string) {
+    archiveProject(projectId)
+    setEditingId(null)
+    setError(null)
+    setMessage(`«${name}» archivado. Puedes restaurarlo más abajo.`)
+  }
+
+  function onRestore(projectId: string, name: string) {
+    restoreProject(projectId)
+    setError(null)
+    setMessage(`«${name}» restaurado. Ya es el proyecto activo.`)
   }
 
   async function onShareProject(projectId: string) {
@@ -353,52 +385,177 @@ export function ProjectsPage() {
         </BigButton>
       </form>
 
-      <div className="project-list" role="list">
+      <div className="stack">
         <h2 className="section-title">Tus proyectos</h2>
-        {sortProjectsByRecent(state.projects).map((p) => {
-          const isActive = p.id === state.activeId
-          const isEditing = editingId === p.id
-          return (
-            <article
-              key={p.id}
-              className={`project-card${isActive ? ' project-card--active' : ''}`}
-              role="listitem"
-            >
-              {isEditing ? (
-                <form className="stack" onSubmit={saveEdit}>
-                  <div className="field">
-                    <label htmlFor={`edit-name-${p.id}`}>Nombre</label>
-                    <input
-                      id={`edit-name-${p.id}`}
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`edit-notes-${p.id}`}>Notas</label>
-                    <textarea
-                      id={`edit-notes-${p.id}`}
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                  <div className="row-actions">
-                    <BigButton type="submit" variant="primary">
-                      Guardar
-                    </BigButton>
-                    <BigButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancelar
-                    </BigButton>
-                  </div>
-                </form>
-              ) : (
-                <>
+        <div className="field">
+          <label htmlFor={searchId}>Buscar por nombre</label>
+          <input
+            id={searchId}
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Bufanda, gorro…"
+            autoComplete="off"
+          />
+        </div>
+        {visibleOpen.length === 0 ? (
+          <p className="muted">
+            {query.trim()
+              ? `Ningún proyecto coincide con «${query.trim()}».`
+              : 'Aún no hay proyectos activos.'}
+          </p>
+        ) : (
+          <div className="project-list" role="list">
+            {visibleOpen.map((p) => {
+              const isActive = p.id === state.activeId
+              const isEditing = editingId === p.id
+              return (
+                <article
+                  key={p.id}
+                  className={`project-card${isActive ? ' project-card--active' : ''}`}
+                  role="listitem"
+                >
+                  {isEditing ? (
+                    <form className="stack" onSubmit={saveEdit}>
+                      <div className="field">
+                        <label htmlFor={`edit-name-${p.id}`}>Nombre</label>
+                        <input
+                          id={`edit-name-${p.id}`}
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`edit-notes-${p.id}`}>Notas</label>
+                        <textarea
+                          id={`edit-notes-${p.id}`}
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          rows={2}
+                        />
+                      </div>
+                      <div className="row-actions">
+                        <BigButton type="submit" variant="primary">
+                          Guardar
+                        </BigButton>
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setEditingId(null)}
+                        >
+                          Cancelar
+                        </BigButton>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="project-card__head">
+                        {p.photoDataUrl ? (
+                          <img
+                            className="project-card__thumb"
+                            src={p.photoDataUrl}
+                            alt=""
+                          />
+                        ) : (
+                          <div className="project-card__thumb project-card__thumb--empty" />
+                        )}
+                        <div>
+                          <h3 className="project-card__title">{p.name}</h3>
+                          <p className="project-card__meta">
+                            Vuelta {p.rows} · Punto {p.stitches} ·{' '}
+                            {formatRelativeDate(p.updatedAt)}
+                          </p>
+                          {p.notes && (
+                            <p className="project-card__notes">{p.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="row-actions">
+                        {!isActive && (
+                          <BigButton
+                            type="button"
+                            variant="primary"
+                            onClick={() => {
+                              setActive(p.id)
+                              setError(null)
+                              setMessage(`Ahora trabajas en «${p.name}».`)
+                            }}
+                          >
+                            Usar
+                          </BigButton>
+                        )}
+                        {isActive && (
+                          <Link className="chip chip--active" to="/contador">
+                            Activo
+                          </Link>
+                        )}
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => startEdit(p.id)}
+                        >
+                          Editar
+                        </BigButton>
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => void onShareProject(p.id)}
+                        >
+                          Compartir
+                        </BigButton>
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => onDuplicate(p.id)}
+                        >
+                          Duplicar
+                        </BigButton>
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          disabled={openCount <= 1}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `¿Archivar «${p.name}»? No se borra; puedes restaurarlo.`,
+                              )
+                            ) {
+                              onArchive(p.id, p.name)
+                            }
+                          }}
+                        >
+                          Archivar
+                        </BigButton>
+                      </div>
+                    </>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {archivedCount > 0 && (
+        <div className="stack">
+          <h2 className="section-title">
+            Archivados ({archivedCount})
+          </h2>
+          <p className="muted">
+            Guardados por si te arrepientes. Restaurarlos los vuelve a poner
+            activos.
+          </p>
+          {visibleArchived.length === 0 ? (
+            <p className="muted">Ningún archivado coincide con la búsqueda.</p>
+          ) : (
+            <div className="project-list" role="list">
+              {visibleArchived.map((p) => (
+                <article
+                  key={p.id}
+                  className="project-card project-card--archived"
+                  role="listitem"
+                >
                   <div className="project-card__head">
                     {p.photoDataUrl ? (
                       <img
@@ -412,53 +569,17 @@ export function ProjectsPage() {
                     <div>
                       <h3 className="project-card__title">{p.name}</h3>
                       <p className="project-card__meta">
-                        Vuelta {p.rows} · Punto {p.stitches} ·{' '}
-                        {formatRelativeDate(p.updatedAt)}
+                        Archivado {formatRelativeDate(p.archivedAt ?? p.updatedAt)}
                       </p>
-                      {p.notes && (
-                        <p className="project-card__notes">{p.notes}</p>
-                      )}
                     </div>
                   </div>
                   <div className="row-actions">
-                    {!isActive && (
-                      <BigButton
-                        type="button"
-                        variant="primary"
-                        onClick={() => {
-                          setActive(p.id)
-                          setError(null)
-                          setMessage(`Ahora trabajas en «${p.name}».`)
-                        }}
-                      >
-                        Usar
-                      </BigButton>
-                    )}
-                    {isActive && (
-                      <Link className="chip chip--active" to="/contador">
-                        Activo
-                      </Link>
-                    )}
                     <BigButton
                       type="button"
-                      variant="ghost"
-                      onClick={() => startEdit(p.id)}
+                      variant="secondary"
+                      onClick={() => onRestore(p.id, p.name)}
                     >
-                      Editar
-                    </BigButton>
-                    <BigButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => void onShareProject(p.id)}
-                    >
-                      Compartir
-                    </BigButton>
-                    <BigButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => onDuplicate(p.id)}
-                    >
-                      Duplicar
+                      Restaurar
                     </BigButton>
                     <BigButton
                       type="button"
@@ -467,7 +588,7 @@ export function ProjectsPage() {
                       onClick={() => {
                         if (
                           window.confirm(
-                            `¿Borrar «${p.name}»? No se puede deshacer.`,
+                            `¿Borrar «${p.name}» del todo? No se puede deshacer.`,
                           )
                         ) {
                           deleteProject(p.id)
@@ -479,12 +600,12 @@ export function ProjectsPage() {
                       Borrar
                     </BigButton>
                   </div>
-                </>
-              )}
-            </article>
-          )
-        })}
-      </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }

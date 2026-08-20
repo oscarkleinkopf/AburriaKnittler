@@ -6,6 +6,7 @@ import { LongSessionBanner } from '../components/LongSessionBanner'
 import { usePrefs } from '../lib/PrefsContext'
 import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
+import { playGoalBeep, playMarkerBeep } from '../lib/sound'
 import {
   currentPatternStep,
   formatClock,
@@ -23,61 +24,6 @@ import {
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
 import { useWakeLock } from '../lib/useWakeLock'
-
-function playGoalBeep() {
-  try {
-    const Ctx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    const now = ctx.currentTime
-    const gain = ctx.createGain()
-    gain.gain.value = 0.1
-    gain.connect(ctx.destination)
-    const first = ctx.createOscillator()
-    first.type = 'sine'
-    first.frequency.value = 660
-    first.connect(gain)
-    first.start(now)
-    first.stop(now + 0.22)
-    const second = ctx.createOscillator()
-    second.type = 'sine'
-    second.frequency.value = 880
-    second.connect(gain)
-    second.start(now + 0.2)
-    second.stop(now + 0.5)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55)
-    window.setTimeout(() => void ctx.close(), 700)
-  } catch {
-    // audio optional
-  }
-}
-
-function playMarkerBeep() {
-  try {
-    const Ctx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = 880
-    gain.gain.value = 0.08
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.start()
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35)
-    osc.stop(ctx.currentTime + 0.4)
-    window.setTimeout(() => void ctx.close(), 500)
-  } catch {
-    // audio optional
-  }
-}
 
 const SESSION_PREVIEW = 8
 
@@ -146,7 +92,7 @@ export function CounterPage() {
     markOpened,
     togglePatternStep,
   } = useProjects()
-  const { alerts, setAlertSound, setAlertVibrate } = usePrefs()
+  const { alerts, setAlertSound, setAlertVibrate, setSpeakStep } = usePrefs()
   const [bump, setBump] = useState(false)
   const [markerHit, setMarkerHit] = useState<string | null>(null)
   const [goalHit, setGoalHit] = useState(false)
@@ -163,7 +109,9 @@ export function CounterPage() {
   const namedLabelId = useId()
   const soundId = useId()
   const vibeId = useId()
+  const speakId = useId()
   const prevRows = useRef(active?.rows ?? 0)
+  const speakTimer = useRef<number | null>(null)
 
   function triggerBump() {
     setBump(false)
@@ -257,7 +205,17 @@ export function CounterPage() {
       if (alerts.sound) playGoalBeep()
       if (alerts.vibrate) vibrateBrief([80, 50, 80, 50, 140])
     }
-  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, active?.targetRows, alerts.sound, alerts.vibrate])
+    if (alerts.speakStep && canSpeak()) {
+      const step = currentPatternStep(active)
+      if (step) {
+        if (speakTimer.current) window.clearTimeout(speakTimer.current)
+        speakTimer.current = window.setTimeout(() => {
+          speakText(patternStepToSpeech(step))
+          setSpeaking(true)
+        }, 280)
+      }
+    }
+  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, active?.targetRows, alerts.sound, alerts.vibrate, alerts.speakStep])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -274,7 +232,10 @@ export function CounterPage() {
   }, [fullscreen])
 
   useEffect(() => {
-    return () => stopSpeaking()
+    return () => {
+      stopSpeaking()
+      if (speakTimer.current) window.clearTimeout(speakTimer.current)
+    }
   }, [])
 
   if (!active) {
@@ -635,7 +596,7 @@ export function CounterPage() {
               checked={alerts.sound}
               onChange={(e) => setAlertSound(e.target.checked)}
             />
-            Sonido
+            Sonido (suave)
           </label>
           <label className="backup-mode" htmlFor={vibeId}>
             <input
@@ -646,6 +607,17 @@ export function CounterPage() {
             />
             Vibración (si el móvil la permite)
           </label>
+          {canSpeak() && (
+            <label className="backup-mode" htmlFor={speakId}>
+              <input
+                id={speakId}
+                type="checkbox"
+                checked={alerts.speakStep}
+                onChange={(e) => setSpeakStep(e.target.checked)}
+              />
+              Leer el siguiente paso al completar una vuelta
+            </label>
+          )}
         </fieldset>
 
         <BigButton

@@ -13,12 +13,17 @@ import {
   parsePatternText,
   parseRepeatSpec,
   patternStepsToText,
+  projectMatchesQuery,
   pushHistory,
   repeatPatternRange,
+  restoreProjectInState,
+  shouldOpenCounterOnLaunch,
   sortProjectsByRecent,
   structureToPatternSteps,
   undoLastChange,
   updatePatternStep,
+  archiveProjectInState,
+  consumeFirstLandingThisSession,
   goalProgress,
   isLongRunningSession,
   justReachedGoal,
@@ -201,6 +206,7 @@ describe('duplicateProject', () => {
     expect(copy.patternSteps[0].id).not.toBe('s1')
     expect(copy.patternSteps[0].done).toBe(false)
     expect(copy.patternSteps[0].instruction).toBe('sisa')
+    expect(copy.archivedAt).toBeNull()
   })
 
   it('increments copy names when (copia) already exists', () => {
@@ -493,5 +499,71 @@ describe('namedMarkerAt and long session', () => {
     expect(isLongRunningSession(project, now)).toBe(true)
     project.timerStartedAt = new Date(now - 60_000).toISOString()
     expect(isLongRunningSession(project, now)).toBe(false)
+  })
+})
+
+describe('projectMatchesQuery', () => {
+  it('matches name and notes without accents', () => {
+    const project = createProject('Bufanda')
+    project.notes = 'Lana merina, aguja 4,5'
+    expect(projectMatchesQuery(project, 'buf')).toBe(true)
+    expect(projectMatchesQuery(project, 'MERINA')).toBe(true)
+    expect(projectMatchesQuery(project, 'gorro')).toBe(false)
+  })
+})
+
+describe('shouldOpenCounterOnLaunch', () => {
+  it('opens the counter if you knitted today or yesterday', () => {
+    const now = new Date(2026, 7, 20, 18, 0, 0)
+    const project = createProject('Bufanda')
+    expect(shouldOpenCounterOnLaunch(project, now)).toBe(false)
+    project.rows = 12
+    project.lastOpenedAt = new Date(2026, 7, 19, 21, 0, 0).toISOString()
+    expect(shouldOpenCounterOnLaunch(project, now)).toBe(true)
+    project.lastOpenedAt = new Date(2026, 7, 18, 10, 0, 0).toISOString()
+    expect(shouldOpenCounterOnLaunch(project, now)).toBe(false)
+    project.archivedAt = now.toISOString()
+    project.lastOpenedAt = now.toISOString()
+    expect(shouldOpenCounterOnLaunch(project, now)).toBe(false)
+  })
+})
+
+describe('archive and restore', () => {
+  it('hides the project and switches the active one', () => {
+    const keep = createProject('Activo')
+    const hide = createProject('Viejo')
+    const before = stateOf([keep, hide], hide.id)
+    const archived = archiveProjectInState(
+      before,
+      hide.id,
+      '2026-08-20T12:00:00.000Z',
+    )
+    expect(archived.activeId).toBe(keep.id)
+    expect(archived.projects.find((p) => p.id === hide.id)?.archivedAt).toBe(
+      '2026-08-20T12:00:00.000Z',
+    )
+    const restored = restoreProjectInState(archived, hide.id)
+    expect(restored.activeId).toBe(hide.id)
+    expect(restored.projects.find((p) => p.id === hide.id)?.archivedAt).toBeNull()
+  })
+
+  it('does not archive the last open project', () => {
+    const only = createProject('Único')
+    const state = stateOf([only])
+    expect(archiveProjectInState(state, only.id)).toBe(state)
+  })
+})
+
+describe('consumeFirstLandingThisSession', () => {
+  it('is true only the first time', () => {
+    const map = new Map<string, string>()
+    const storage = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        map.set(k, v)
+      },
+    }
+    expect(consumeFirstLandingThisSession(storage)).toBe(true)
+    expect(consumeFirstLandingThisSession(storage)).toBe(false)
   })
 })

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   FONT_STEPS,
+  loadAlertPrefs,
   loadColorTheme,
+  saveAlertPrefs,
   saveColorTheme,
   stepFontScale,
 } from './prefs'
@@ -63,5 +65,14 @@ describe('color theme', () => {
     expect(loadColorTheme()).toBe('dark')
     mockMatchMedia(false)
     expect(loadColorTheme()).toBe('light')
+  })
+})
+
+describe('alert prefs', () => {
+  it('keeps speakStep off unless stored as true', () => {
+    mockStorage()
+    expect(loadAlertPrefs().speakStep).toBe(false)
+    saveAlertPrefs({ sound: true, vibrate: true, speakStep: true })
+    expect(loadAlertPrefs().speakStep).toBe(true)
   })
 })
