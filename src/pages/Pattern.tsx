@@ -5,10 +5,14 @@ import { BigButton } from '../components/BigButton'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   currentPatternStep,
+  fileSlug,
+  formatGauge,
   parsePatternText,
   parseRepeatSpec,
   patternStepToSpeech,
   patternStepsToText,
+  sharePattern,
+  sortedPatternSteps,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 
@@ -21,6 +25,8 @@ export function PatternPage() {
     togglePatternStep,
     updatePatternStep,
     removePatternStep,
+    movePatternStep,
+    updateProject,
     markOpened,
   } = useProjects()
   const rowId = useId()
@@ -43,6 +49,11 @@ export function PatternPage() {
   const repeatFromId = useId()
   const repeatToId = useId()
   const repeatTimesId = useId()
+  const yarnId = useId()
+  const needlesId = useId()
+  const gaugeCmId = useId()
+  const gaugeStitchesId = useId()
+  const gaugeRowsId = useId()
 
   useEffect(() => {
     markOpened()
@@ -65,6 +76,10 @@ export function PatternPage() {
 
   const nextStep = active ? currentPatternStep(active) : null
   const doneCount = active?.patternSteps.filter((s) => s.done).length ?? 0
+  const orderIds = useMemo(
+    () => (active ? sortedPatternSteps(active.patternSteps).map((s) => s.id) : []),
+    [active],
+  )
 
   function onAdd(e: FormEvent) {
     e.preventDefault()
@@ -100,12 +115,43 @@ export function PatternPage() {
     setMessage(`Añadidas ${steps.length} instrucciones desde el texto.`)
   }
 
-  function fileSafeName(name: string): string {
-    const slug = name
-      .trim()
-      .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-|-$/g, '')
-    return slug || 'patron'
+  function downloadPattern() {
+    if (!active) return
+    const text = patternStepsToText(active.patternSteps)
+    if (!text) {
+      setMessage('Aún no hay patrón para exportar.')
+      return
+    }
+    const blob = new Blob([`${text}\n`], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${fileSlug(active.name)}-patron.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    setMessage('Descargado el patrón en texto.')
+  }
+
+  async function onSharePattern() {
+    if (!active || active.patternSteps.length === 0) {
+      setMessage('Aún no hay patrón para compartir.')
+      return
+    }
+    try {
+      const mode = await sharePattern(active)
+      setMessage(
+        mode === 'shared'
+          ? 'Patrón listo para compartir (sin fotos ni contador).'
+          : 'Descargado el patrón (.json), sin fotos ni contador.',
+      )
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      setMessage('No se pudo compartir el patrón.')
+    }
+  }
+
+  function printPattern() {
+    window.print()
   }
 
   async function copyPattern() {
@@ -121,23 +167,6 @@ export function PatternPage() {
     } catch {
       setMessage('No pude copiar. Usa «Descargar texto».')
     }
-  }
-
-  function downloadPattern() {
-    if (!active) return
-    const text = patternStepsToText(active.patternSteps)
-    if (!text) {
-      setMessage('Aún no hay patrón para exportar.')
-      return
-    }
-    const blob = new Blob([`${text}\n`], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${fileSafeName(active.name)}-patron.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-    setMessage('Descargado el patrón en texto.')
   }
 
   function applyRepeat(from: number, to: number, times: number) {
@@ -212,8 +241,8 @@ export function PatternPage() {
   }
 
   return (
-    <section className="stack animate-enter" aria-labelledby="pattern-title">
-      <div>
+    <section className="stack animate-enter pattern-page" aria-labelledby="pattern-title">
+      <div className="no-print">
         <h1 id="pattern-title" className="page-title">
           Patrón por filas
         </h1>
@@ -221,12 +250,28 @@ export function PatternPage() {
           Proyecto: <strong>{active.name}</strong>. Anota instrucciones por
           fila y márcalas cuando las completes.
         </p>
+        {formatGauge(active) ? (
+          <p className="project-notes-preview">{formatGauge(active)}</p>
+        ) : null}
       </div>
+
+      <article className="print-sheet" aria-hidden="true">
+        <h1>{active.name}</h1>
+        {formatGauge(active) ? <p>{formatGauge(active)}</p> : null}
+        {active.notes.trim() ? <p>{active.notes}</p> : null}
+        <ol>
+          {sortedPatternSteps(active.patternSteps).map((step) => (
+            <li key={step.id}>
+              <strong>Fila {step.row}.</strong> {step.instruction}
+            </li>
+          ))}
+        </ol>
+      </article>
 
       {message && <Banner tone="info">{message}</Banner>}
 
       {nextStep && (
-        <div className="pattern-next">
+        <div className="pattern-next no-print">
           <p className="project-active__label">Siguiente paso</p>
           <p className="pattern-next__row">Fila {nextStep.row}</p>
           <p className="pattern-next__text">{nextStep.instruction}</p>
@@ -262,7 +307,7 @@ export function PatternPage() {
         </div>
       )}
 
-      <form className="stack" onSubmit={onAdd}>
+      <form className="stack no-print" onSubmit={onAdd}>
         <h2 className="section-title">Nueva instrucción</h2>
         <div className="field">
           <label htmlFor={rowId}>Fila</label>
@@ -292,7 +337,7 @@ export function PatternPage() {
         </BigButton>
       </form>
 
-      <form className="stack" onSubmit={onPasteText}>
+      <form className="stack no-print" onSubmit={onPasteText}>
         <h2 className="section-title">Pegar patrón</h2>
         <p className="muted">
           Una instrucción por línea. Acepta «12: 2 juntos», «Fila 8 lazada» o
@@ -313,10 +358,88 @@ export function PatternPage() {
         </BigButton>
       </form>
 
-      <div className="stack">
+      <div className="stack no-print">
+        <h2 className="section-title">Muestra / tensión</h2>
+        <p className="muted">
+          Para acertar la talla. Sale al imprimir y al compartir el patrón.
+        </p>
+        <div className="field">
+          <label htmlFor={yarnId}>Lana o hilo</label>
+          <input
+            id={yarnId}
+            value={active.yarn}
+            onChange={(e) => updateProject(active.id, { yarn: e.target.value })}
+            placeholder="Merina, algodón…"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={needlesId}>Agujas</label>
+          <input
+            id={needlesId}
+            value={active.needles}
+            onChange={(e) =>
+              updateProject(active.id, { needles: e.target.value })
+            }
+            placeholder="4,5 mm"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={gaugeCmId}>Muestra en cm</label>
+          <input
+            id={gaugeCmId}
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={active.gaugeCm}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10)
+              updateProject(active.id, {
+                gaugeCm: Number.isFinite(n) ? n : 10,
+              })
+            }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={gaugeStitchesId}>Puntos en esa muestra</label>
+          <input
+            id={gaugeStitchesId}
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={active.gaugeStitches || ''}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10)
+              updateProject(active.id, {
+                gaugeStitches: Number.isFinite(n) ? n : 0,
+              })
+            }}
+            placeholder="0 = no"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={gaugeRowsId}>Filas en esa muestra</label>
+          <input
+            id={gaugeRowsId}
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={active.gaugeRows || ''}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10)
+              updateProject(active.id, {
+                gaugeRows: Number.isFinite(n) ? n : 0,
+              })
+            }}
+            placeholder="0 = no"
+          />
+        </div>
+      </div>
+
+      <div className="stack no-print">
         <h2 className="section-title">Exportar patrón</h2>
         <p className="muted">
-          Copia o descarga el mismo formato que puedes pegar luego.
+          Copia, descarga, comparte solo el patrón (sin fotos ni contador) o
+          imprímelo.
         </p>
         <div className="row-actions">
           <BigButton
@@ -335,10 +458,26 @@ export function PatternPage() {
           >
             Descargar texto
           </BigButton>
+          <BigButton
+            type="button"
+            variant="secondary"
+            onClick={() => void onSharePattern()}
+            disabled={active.patternSteps.length === 0}
+          >
+            Compartir patrón
+          </BigButton>
+          <BigButton
+            type="button"
+            variant="ghost"
+            onClick={printPattern}
+            disabled={active.patternSteps.length === 0}
+          >
+            Imprimir
+          </BigButton>
         </div>
       </div>
 
-      <form className="stack" onSubmit={onRepeatText}>
+      <form className="stack no-print" onSubmit={onRepeatText}>
         <h2 className="section-title">Repetir un tramo</h2>
         <p className="muted">
           Ejemplo: «filas 10-20, 4 veces» o «10-20 x 4». Copia esas filas a
@@ -363,7 +502,7 @@ export function PatternPage() {
         </BigButton>
       </form>
 
-      <form className="stack" onSubmit={onRepeatForm}>
+      <form className="stack no-print" onSubmit={onRepeatForm}>
         <div className="field">
           <label htmlFor={repeatFromId}>Desde la fila</label>
           <input
@@ -411,7 +550,7 @@ export function PatternPage() {
         </BigButton>
       </form>
 
-      <div className="stack">
+      <div className="stack no-print">
         <h2 className="section-title">Instrucciones</h2>
         {doneCount > 0 && (
           <label className="backup-mode">
@@ -498,6 +637,24 @@ export function PatternPage() {
                       </BigButton>
                       <BigButton
                         type="button"
+                        variant="ghost"
+                        disabled={orderIds.indexOf(step.id) <= 0}
+                        onClick={() => movePatternStep(step.id, -1)}
+                      >
+                        Subir
+                      </BigButton>
+                      <BigButton
+                        type="button"
+                        variant="ghost"
+                        disabled={
+                          orderIds.indexOf(step.id) >= orderIds.length - 1
+                        }
+                        onClick={() => movePatternStep(step.id, 1)}
+                      >
+                        Bajar
+                      </BigButton>
+                      <BigButton
+                        type="button"
                         variant="danger"
                         onClick={() => {
                           if (window.confirm('¿Borrar esta instrucción?')) {
@@ -516,7 +673,7 @@ export function PatternPage() {
         )}
       </div>
 
-      <BigButton to="/contador" variant="secondary" block>
+      <BigButton to="/contador" variant="secondary" block className="no-print">
         Ir al contador
       </BigButton>
     </section>

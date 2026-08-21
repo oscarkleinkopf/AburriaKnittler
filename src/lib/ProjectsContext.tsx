@@ -9,15 +9,19 @@ import {
 import type { AnalyzeResult } from './analyze'
 import {
   appendPatternSteps,
+  addProjectPhoto,
   applyAnalysisToCounters,
   archiveProjectInState,
+  collectPhotos,
   createId,
   createProject,
   duplicateProject,
   loadState,
-  parseBackupJson,
+  MAX_PHOTOS,
+  removeProjectPhoto,
   pushHistory,
   repeatPatternRange as expandPatternRange,
+  movePatternStep as shiftPatternStep,
   restoreProjectInState,
   saveState,
   touch,
@@ -53,6 +57,8 @@ type ProjectsApi = {
   saveAnalysis: (result: AnalyzeResult) => void
   applyAnalysisToCounters: (result: AnalyzeResult) => void
   setPhoto: (dataUrl: string | null) => void
+  addPhoto: (dataUrl: string) => boolean
+  removePhoto: (dataUrl: string) => void
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
   markOpened: () => void
@@ -69,6 +75,7 @@ type ProjectsApi = {
     patch: { row?: number; instruction?: string },
   ) => void
   removePatternStep: (stepId: string) => void
+  movePatternStep: (stepId: string, direction: -1 | 1) => void
   startTimer: () => void
   stopTimer: () => void
 }
@@ -253,7 +260,25 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setPhoto = useCallback((dataUrl: string | null) => {
-    patchActive((p) => ({ ...p, photoDataUrl: dataUrl }))
+    patchActive((p) => {
+      if (dataUrl == null) {
+        return { ...p, photoDataUrl: null, photos: [] }
+      }
+      return addProjectPhoto({ ...p, photos: [], photoDataUrl: null }, dataUrl)
+    })
+  }, [])
+
+  const addPhoto = useCallback((dataUrl: string) => {
+    if (!dataUrl) return false
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current) return false
+    if (collectPhotos(current).length >= MAX_PHOTOS) return false
+    patchActive((p) => addProjectPhoto(p, dataUrl))
+    return true
+  }, [])
+
+  const removePhoto = useCallback((dataUrl: string) => {
+    patchActive((p) => removeProjectPhoto(p, dataUrl))
   }, [])
 
   const replaceState = useCallback((next: ProjectsState) => {
@@ -333,6 +358,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const moveStep = useCallback((stepId: string, direction: -1 | 1) => {
+    patchActive((p) => ({
+      ...p,
+      patternSteps: shiftPatternStep(p.patternSteps, stepId, direction),
+    }))
+  }, [])
+
   const startTimer = useCallback(() => {
     patchActive((p) => {
       if (p.timerStartedAt) return p
@@ -386,6 +418,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       saveAnalysis,
       applyAnalysisToCounters: applyAnalysis,
       setPhoto,
+      addPhoto,
+      removePhoto,
       replaceState,
       importBackup,
       markOpened,
@@ -395,6 +429,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       togglePatternStep,
       updatePatternStep: updateStep,
       removePatternStep,
+      movePatternStep: moveStep,
       startTimer,
       stopTimer,
     }),
@@ -419,6 +454,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       saveAnalysis,
       applyAnalysis,
       setPhoto,
+      addPhoto,
+      removePhoto,
       replaceState,
       importBackup,
       markOpened,
@@ -428,6 +465,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       togglePatternStep,
       updateStep,
       removePatternStep,
+      moveStep,
       startTimer,
       stopTimer,
     ],

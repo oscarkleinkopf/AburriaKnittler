@@ -15,17 +15,25 @@ describe('pantallas', () => {
     expect(getByText(/Crea o elige un proyecto/)).toBeTruthy()
   })
 
-  it('projects lets you search and create', () => {
-    const { getByLabelText, getByRole } = renderPage(<ProjectsPage />)
-    expect(getByRole('heading', { name: 'Proyectos' })).toBeTruthy()
-    expect(getByLabelText('Buscar por nombre')).toBeTruthy()
-    expect(getByRole('button', { name: 'Crear proyecto' })).toBeTruthy()
-  })
-
   it('pattern shows the row instructions page', () => {
     const { getByRole } = renderPage(<PatternPage />)
     expect(getByRole('heading', { name: 'Patrón por filas' })).toBeTruthy()
     expect(getByRole('button', { name: 'Añadir al patrón' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Compartir patrón' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Imprimir' })).toBeTruthy()
+    expect(getByRole('heading', { name: 'Muestra / tensión' })).toBeTruthy()
+  })
+
+  it('projects lets you search, filter and create', () => {
+    const { getByLabelText, getByRole } = renderPage(<ProjectsPage />)
+    expect(getByRole('heading', { name: 'Proyectos' })).toBeTruthy()
+    expect(getByLabelText('Buscar por nombre')).toBeTruthy()
+    expect(getByRole('button', { name: 'Crear proyecto' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Todos' })).toBeTruthy()
+    expect(getByRole('button', { name: 'En curso' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Con patrón' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Con foto' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Con meta' })).toBeTruthy()
   })
 
   it('counter shows the row count', () => {

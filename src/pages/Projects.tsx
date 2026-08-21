@@ -10,17 +10,23 @@ import {
   markBackupExported,
 } from '../lib/dataCare'
 import {
+  collectPhotos,
   compressImageFile,
   downloadBackup,
+  formatGauge,
   formatRelativeDate,
   getLastSaveResult,
+  MAX_PHOTOS,
   openProjects,
   archivedProjects,
+  PROJECT_FILTERS,
+  projectMatchesFilter,
   projectMatchesQuery,
   readBackupFile,
   shareProject,
   sortProjectsByRecent,
   type ImportMode,
+  type ProjectFilter,
 } from '../lib/projects'
 
 export function ProjectsPage() {
@@ -35,6 +41,8 @@ export function ProjectsPage() {
     restoreProject,
     deleteProject,
     setPhoto,
+    addPhoto,
+    removePhoto,
     importBackup,
   } = useProjects()
   const nameId = useId()
@@ -50,6 +58,7 @@ export function ProjectsPage() {
   const [error, setError] = useState<string | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<ProjectFilter>('all')
   const searchId = useId()
   const save = getLastSaveResult()
   const storage = buildStorageReport(
@@ -58,16 +67,17 @@ export function ProjectsPage() {
   )
   const openCount = openProjects(state.projects).length
   const visibleOpen = useMemo(() => {
-    return sortProjectsByRecent(openProjects(state.projects)).filter((p) =>
-      projectMatchesQuery(p, query),
+    return sortProjectsByRecent(openProjects(state.projects)).filter(
+      (p) => projectMatchesQuery(p, query) && projectMatchesFilter(p, filter),
     )
-  }, [state.projects, query])
+  }, [state.projects, query, filter])
   const visibleArchived = useMemo(() => {
-    return sortProjectsByRecent(archivedProjects(state.projects)).filter((p) =>
-      projectMatchesQuery(p, query),
+    return sortProjectsByRecent(archivedProjects(state.projects)).filter(
+      (p) => projectMatchesQuery(p, query) && projectMatchesFilter(p, filter),
     )
-  }, [state.projects, query])
+  }, [state.projects, query, filter])
   const archivedCount = archivedProjects(state.projects).length
+  const activePhotos = active ? collectPhotos(active) : []
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -100,12 +110,17 @@ export function ProjectsPage() {
 
   async function onPhoto(file: File | null) {
     if (!file || !active) return
+    if (collectPhotos(active).length >= MAX_PHOTOS) {
+      setMessage(null)
+      setError(`Como mucho ${MAX_PHOTOS} fotos. Quita una primero.`)
+      return
+    }
     try {
       const dataUrl = await compressImageFile(file)
-      setPhoto(dataUrl)
+      addPhoto(dataUrl)
       const save = getLastSaveResult()
       if (!save.ok) {
-        setPhoto(null)
+        removePhoto(dataUrl)
         setMessage(null)
         setError(
           save.reason === 'quota'
@@ -223,7 +238,7 @@ export function ProjectsPage() {
           Proyectos
         </h1>
         <p className="page-lead">
-          Cada proyecto guarda su contador, notas, foto y último análisis en
+          Cada proyecto guarda su contador, notas, fotos y último análisis en
           este dispositivo. Puedes exportar un JSON para cambiar de móvil.
         </p>
       </div>
@@ -304,6 +319,9 @@ export function ProjectsPage() {
           <p className="project-active__meta">
             Vuelta {active.rows} · Punto {active.stitches}
           </p>
+          {formatGauge(active) ? (
+            <p className="muted">{formatGauge(active)}</p>
+          ) : null}
           <div className="project-active__actions">
             <BigButton to="/contador" variant="primary">
               Abrir contador
@@ -322,38 +340,76 @@ export function ProjectsPage() {
             >
               Duplicar
             </BigButton>
-            <label className="file-button">
-              <input
-                type="file"
-                accept="image/*"
-                className="file-pick__input"
-                onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
-              />
-              <span className="big-button big-button--ghost">
-                {active.photoDataUrl ? 'Cambiar imagen' : 'Añadir imagen'}
-              </span>
-            </label>
           </div>
-          {active.photoDataUrl && (
-            <>
-              <img
-                className="file-pick__preview"
-                src={active.photoDataUrl}
-                alt={`Foto de ${active.name}`}
-              />
-              <BigButton
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setPhoto(null)
-                  setError(null)
-                  setMessage('Foto quitada del proyecto.')
-                }}
-              >
-                Quitar foto
-              </BigButton>
-            </>
-          )}
+          <div className="photo-gallery">
+            <p className="photo-gallery__label" id="active-photos-label">
+              Fotos ({activePhotos.length}/{MAX_PHOTOS})
+            </p>
+            {activePhotos.length > 0 ? (
+              <ul className="photo-gallery__list" aria-labelledby="active-photos-label">
+                {activePhotos.map((url, index) => (
+                  <li key={`${index}-${url.length}`} className="photo-gallery__item">
+                    <img
+                      className="photo-gallery__img"
+                      src={url}
+                      alt={
+                        index === 0
+                          ? `Portada de ${active.name}`
+                          : `Foto ${index + 1} de ${active.name}`
+                      }
+                    />
+                    <BigButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        removePhoto(url)
+                        setError(null)
+                        setMessage(
+                          index === 0
+                            ? 'Portada quitada.'
+                            : 'Foto quitada del proyecto.',
+                        )
+                      }}
+                    >
+                      Quitar
+                    </BigButton>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">Aún no hay fotos de referencia.</p>
+            )}
+            <div className="row-actions">
+              {activePhotos.length < MAX_PHOTOS ? (
+                <label className="file-button">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="file-pick__input"
+                    onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
+                  />
+                  <span className="big-button big-button--ghost">
+                    Añadir imagen
+                  </span>
+                </label>
+              ) : (
+                <p className="muted">Como mucho {MAX_PHOTOS} fotos. Quita una para añadir otra.</p>
+              )}
+              {activePhotos.length > 1 && (
+                <BigButton
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setPhoto(null)
+                    setError(null)
+                    setMessage('Fotos quitadas del proyecto.')
+                  }}
+                >
+                  Quitar todas
+                </BigButton>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -394,14 +450,30 @@ export function ProjectsPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Bufanda, gorro…"
+            placeholder="Nombre, lana, agujas…"
             autoComplete="off"
           />
         </div>
+        <fieldset className="project-filters">
+          <legend className="project-filters__legend">Mostrar</legend>
+          <div className="project-filters__row">
+            {PROJECT_FILTERS.map((f) => (
+              <BigButton
+                key={f.id}
+                type="button"
+                variant={filter === f.id ? 'primary' : 'ghost'}
+                aria-pressed={filter === f.id}
+                onClick={() => setFilter(f.id)}
+              >
+                {f.label}
+              </BigButton>
+            ))}
+          </div>
+        </fieldset>
         {visibleOpen.length === 0 ? (
           <p className="muted">
-            {query.trim()
-              ? `Ningún proyecto coincide con «${query.trim()}».`
+            {query.trim() || filter !== 'all'
+              ? 'Ningún proyecto coincide con la búsqueda o el filtro.'
               : 'Aún no hay proyectos activos.'}
           </p>
         ) : (
@@ -469,6 +541,11 @@ export function ProjectsPage() {
                           {p.notes && (
                             <p className="project-card__notes">{p.notes}</p>
                           )}
+                          {formatGauge(p) ? (
+                            <p className="project-card__notes muted">
+                              {formatGauge(p)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <div className="row-actions">
@@ -547,7 +624,9 @@ export function ProjectsPage() {
             activos.
           </p>
           {visibleArchived.length === 0 ? (
-            <p className="muted">Ningún archivado coincide con la búsqueda.</p>
+            <p className="muted">
+              Ningún archivado coincide con la búsqueda o el filtro.
+            </p>
           ) : (
             <div className="project-list" role="list">
               {visibleArchived.map((p) => (

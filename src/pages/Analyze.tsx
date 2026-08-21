@@ -14,8 +14,10 @@ import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   analysisHasCounters,
+  collectPhotos,
   compressImageFile,
   getLastSaveResult,
+  MAX_PHOTOS,
   structureToPatternSteps,
 } from '../lib/projects'
 import {
@@ -61,7 +63,8 @@ export function AnalyzePage() {
   const {
     active,
     saveAnalysis,
-    setPhoto,
+    addPhoto,
+    removePhoto,
     applyAnalysisToCounters,
     setTargetRows,
     addPatternSteps,
@@ -184,14 +187,16 @@ export function AnalyzePage() {
       if (active) {
         saveAnalysis(data)
         try {
-          const thumb = await compressImageFile(file)
-          setPhoto(thumb)
-          const save = getLastSaveResult()
-          if (!save.ok && save.reason === 'quota') {
-            setPhoto(null)
-            setSaveMsg(
-              'Estimación guardada. La foto no cupo; quita otra o exporta un respaldo.',
-            )
+          if (collectPhotos(active).length < MAX_PHOTOS) {
+            const thumb = await compressImageFile(file)
+            addPhoto(thumb)
+            const save = getLastSaveResult()
+            if (!save.ok && save.reason === 'quota') {
+              removePhoto(thumb)
+              setSaveMsg(
+                'Estimación guardada. La foto no cupo; quita otra o exporta un respaldo.',
+              )
+            }
           }
         } catch {
           // photo optional

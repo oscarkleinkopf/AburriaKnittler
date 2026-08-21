@@ -1,4 +1,5 @@
 import type { Project, ProjectsState } from './projects'
+import { collectPhotos } from './projects'
 
 export const LAST_BACKUP_KEY = 'aburriaknittler.lastBackupAt'
 export const BACKUP_DISMISS_KEY = 'aburriaknittler.backupRemindDismissedAt'
@@ -38,9 +39,9 @@ export function measurePhotoBytes(projects: Project[]): {
   let bytes = 0
   let count = 0
   for (const p of projects) {
-    if (!p.photoDataUrl) continue
-    count += 1
-    bytes += utf8ByteLength(p.photoDataUrl)
+    const urls = collectPhotos(p)
+    count += urls.length
+    for (const url of urls) bytes += utf8ByteLength(url)
   }
   return { bytes, count }
 }
@@ -91,7 +92,7 @@ export function hasKnitData(state: ProjectsState): boolean {
       p.patternSteps.length > 0 ||
       p.sessions.length > 0 ||
       Boolean(p.notes.trim()) ||
-      Boolean(p.photoDataUrl) ||
+      Boolean(collectPhotos(p).length > 0) ||
       Boolean(p.lastAnalysis),
   )
 }

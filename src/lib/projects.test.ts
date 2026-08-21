@@ -2,17 +2,23 @@ import { describe, expect, it } from 'vitest'
 import {
   applyAnalysisToCounters,
   backupToJson,
+  buildPatternShare,
+  collectPhotos,
   createProject,
   currentPatternStep,
   duplicateProject,
   formatClock,
   formatDuration,
+  formatGauge,
   groupSessionsByDay,
+  movePatternStep,
   nextCopyName,
   parseBackupJson,
   parsePatternText,
   parseRepeatSpec,
+  patternShareToText,
   patternStepsToText,
+  projectMatchesFilter,
   projectMatchesQuery,
   pushHistory,
   repeatPatternRange,
@@ -565,5 +571,100 @@ describe('consumeFirstLandingThisSession', () => {
     }
     expect(consumeFirstLandingThisSession(storage)).toBe(true)
     expect(consumeFirstLandingThisSession(storage)).toBe(false)
+  })
+})
+
+describe('collectPhotos and gauge', () => {
+  it('keeps the cover photo first and caps the gallery', () => {
+    const project = createProject('Chal')
+    project.photoDataUrl = 'data:a'
+    project.photos = ['data:b', 'data:a', 'data:c', 'data:d', 'data:e']
+    expect(collectPhotos(project)).toEqual(['data:a', 'data:b', 'data:c', 'data:d'])
+  })
+
+  it('formats tension notes in Spanish', () => {
+    const project = createProject('Bufanda')
+    expect(formatGauge(project)).toBeNull()
+    project.gaugeCm = 10
+    project.gaugeStitches = 22
+    project.gaugeRows = 30
+    project.needles = '4,5 mm'
+    project.yarn = 'Merina'
+    expect(formatGauge(project)).toBe(
+      'Muestra 10 cm: 22 puntos × 30 filas · Aguja 4,5 mm · Merina',
+    )
+  })
+})
+
+describe('movePatternStep', () => {
+  it('swaps row numbers with the neighbor', () => {
+    const steps: PatternStep[] = [
+      { id: 'a', row: 8, instruction: 'elástico', done: false },
+      { id: 'b', row: 12, instruction: 'sisa', done: false },
+      { id: 'c', row: 20, instruction: 'cierre', done: false },
+    ]
+    const up = movePatternStep(steps, 'b', -1)
+    expect(up.map((s) => ({ id: s.id, row: s.row }))).toEqual([
+      { id: 'a', row: 12 },
+      { id: 'b', row: 8 },
+      { id: 'c', row: 20 },
+    ])
+    expect(movePatternStep(steps, 'a', -1)).toBe(steps)
+  })
+
+  it('nudges a step by one row when it shares the neighbor number', () => {
+    const steps: PatternStep[] = [
+      { id: 'a', row: 10, instruction: 'primero', done: false },
+      { id: 'b', row: 10, instruction: 'segundo', done: false },
+    ]
+    const down = movePatternStep(steps, 'a', 1)
+    expect(down.find((s) => s.id === 'a')?.row).toBe(11)
+    expect(down.find((s) => s.id === 'b')?.row).toBe(10)
+  })
+})
+
+describe('projectMatchesFilter', () => {
+  it('filters in progress, pattern, photo and goal', () => {
+    const idle = createProject('A')
+    const knitting = createProject('B')
+    knitting.rows = 4
+    const patterned = createProject('C')
+    patterned.patternSteps = [
+      { id: 's', row: 1, instruction: 'derecho', done: false },
+    ]
+    const pictured = createProject('D')
+    pictured.photos = ['data:x']
+    const aimed = createProject('E')
+    aimed.targetRows = 80
+    expect(projectMatchesFilter(idle, 'inProgress')).toBe(false)
+    expect(projectMatchesFilter(knitting, 'inProgress')).toBe(true)
+    expect(projectMatchesFilter(patterned, 'withPattern')).toBe(true)
+    expect(projectMatchesFilter(pictured, 'withPhoto')).toBe(true)
+    expect(projectMatchesFilter(aimed, 'withGoal')).toBe(true)
+    knitting.yarn = 'Merina extrafina'
+    expect(projectMatchesQuery(knitting, 'merina')).toBe(true)
+    expect(projectMatchesQuery(idle, 'merina')).toBe(false)
+  })
+})
+
+describe('pattern share file', () => {
+  it('round-trips as a new project without counters', () => {
+    const source = createProject('Jersey')
+    source.yarn = 'Algodón'
+    source.patternSteps = [
+      { id: 's', row: 10, instruction: '2 juntos', done: true },
+    ]
+    source.rows = 40
+    const json = JSON.stringify(buildPatternShare(source))
+    const result = parseBackupJson(json, stateOf([createProject('Actual')]), 'merge')
+    expect(result.added).toBe(1)
+    const imported = result.state.projects.find((p) => p.name === 'Jersey')
+    expect(imported?.rows).toBe(0)
+    expect(imported?.yarn).toBe('Algodón')
+    expect(imported?.patternSteps).toHaveLength(1)
+    expect(imported?.patternSteps[0].done).toBe(false)
+    expect(imported?.patternSteps[0].instruction).toBe('2 juntos')
+    expect(imported?.photoDataUrl).toBeNull()
+    expect(patternShareToText(buildPatternShare(source))).toMatch(/Fila 10: 2 juntos/)
   })
 })

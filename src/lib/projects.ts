@@ -32,6 +32,17 @@ export type Project = {
   name: string
   notes: string
   photoDataUrl: string | null
+  /** Hasta MAX_PHOTOS; photoDataUrl es la portada (la primera). */
+  photos: string[]
+  /** Lana o hilo */
+  yarn: string
+  /** Agujas, p. ej. 4,5 mm */
+  needles: string
+  /** 0 = sin muestra */
+  gaugeStitches: number
+  gaugeRows: number
+  /** Centímetros de la muestra (por defecto 10) */
+  gaugeCm: number
   createdAt: string
   updatedAt: string
   rows: number
@@ -65,6 +76,8 @@ const MAX_HISTORY = 40
 const MAX_SESSIONS = 80
 export const MAX_PATTERN_STEPS = 200
 const MAX_NAMED_MARKERS = 40
+export const MAX_PHOTOS = 4
+export const DEFAULT_GAUGE_CM = 10
 /** Sesión en curso más de 3 h: preguntar si sigue. */
 export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
 
@@ -82,6 +95,12 @@ export function createProject(name: string, notes = ''): Project {
     name: name.trim() || 'Sin nombre',
     notes: notes.trim(),
     photoDataUrl: null,
+    photos: [],
+    yarn: '',
+    needles: '',
+    gaugeStitches: 0,
+    gaugeRows: 0,
+    gaugeCm: DEFAULT_GAUGE_CM,
     createdAt: now,
     updatedAt: now,
     rows: 0,
@@ -183,12 +202,69 @@ function normalizeNamedMarker(m: NamedMarker): NamedMarker {
   }
 }
 
+export function collectPhotos(p: {
+  photoDataUrl?: string | null
+  photos?: string[] | null
+}): string[] {
+  const fromArray = Array.isArray(p.photos) ? p.photos : []
+  const cover =
+    typeof p.photoDataUrl === 'string' && p.photoDataUrl ? [p.photoDataUrl] : []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const url of [...cover, ...fromArray]) {
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    out.push(url)
+    if (out.length >= MAX_PHOTOS) break
+  }
+  return out
+}
+
+export function addProjectPhoto(
+  project: Project,
+  dataUrl: string,
+): Project {
+  const photos = collectPhotos({
+    photoDataUrl: project.photoDataUrl,
+    photos: [...project.photos, dataUrl],
+  })
+  return {
+    ...project,
+    photos,
+    photoDataUrl: photos[0] ?? null,
+  }
+}
+
+export function removeProjectPhoto(
+  project: Project,
+  dataUrl: string,
+): Project {
+  const photos = collectPhotos({
+    photos: project.photos.filter((url) => url !== dataUrl),
+  })
+  return {
+    ...project,
+    photos,
+    photoDataUrl: photos[0] ?? null,
+  }
+}
+
 function normalizeProject(p: Project): Project {
+  const photos = collectPhotos(p)
   return {
     id: p.id || createId(),
     name: p.name || 'Sin nombre',
     notes: p.notes ?? '',
-    photoDataUrl: p.photoDataUrl ?? null,
+    photoDataUrl: photos[0] ?? null,
+    photos,
+    yarn: String(p.yarn ?? '').trim(),
+    needles: String(p.needles ?? '').trim(),
+    gaugeStitches: Math.max(0, Math.round(Number(p.gaugeStitches) || 0)),
+    gaugeRows: Math.max(0, Math.round(Number(p.gaugeRows) || 0)),
+    gaugeCm: Math.max(
+      1,
+      Math.round(Number(p.gaugeCm) || DEFAULT_GAUGE_CM) || DEFAULT_GAUGE_CM,
+    ),
     createdAt: p.createdAt || new Date().toISOString(),
     updatedAt: p.updatedAt || new Date().toISOString(),
     rows: Math.max(0, Number(p.rows) || 0),
@@ -588,6 +664,140 @@ export function buildProjectShare(project: Project): ProjectShareFile {
   }
 }
 
+export type PatternShareFile = {
+  app: 'AburriaKnittler'
+  format: 1
+  kind: 'pattern'
+  exportedAt: string
+  name: string
+  yarn: string
+  needles: string
+  gaugeStitches: number
+  gaugeRows: number
+  gaugeCm: number
+  notes: string
+  steps: Array<{ row: number; instruction: string }>
+}
+
+export function buildPatternShare(project: Project): PatternShareFile {
+  return {
+    app: 'AburriaKnittler',
+    format: 1,
+    kind: 'pattern',
+    exportedAt: new Date().toISOString(),
+    name: project.name,
+    yarn: project.yarn,
+    needles: project.needles,
+    gaugeStitches: project.gaugeStitches,
+    gaugeRows: project.gaugeRows,
+    gaugeCm: project.gaugeCm,
+    notes: project.notes,
+    steps: sortedPatternSteps(project.patternSteps).map((s) => ({
+      row: s.row,
+      instruction: s.instruction,
+    })),
+  }
+}
+
+export function patternShareToText(share: PatternShareFile): string {
+  const header = [
+    share.name,
+    formatGauge({
+      ...createProject(share.name),
+      yarn: share.yarn,
+      needles: share.needles,
+      gaugeStitches: share.gaugeStitches,
+      gaugeRows: share.gaugeRows,
+      gaugeCm: share.gaugeCm,
+    }),
+    share.notes.trim() || null,
+  ].filter(Boolean)
+  const body = share.steps
+    .map((s) => `Fila ${s.row}: ${s.instruction}`)
+    .join('\n')
+  return [...header, '', body].join('\n').trim()
+}
+
+export function downloadPatternShare(project: Project): void {
+  const share = buildPatternShare(project)
+  const json = `${JSON.stringify(share, null, 2)}\n`
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `aburriaknittler-${safeFileSlug(project.name)}-patron.json`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Comparte solo el patrón (texto o JSON), sin fotos ni contador. */
+export async function sharePattern(
+  project: Project,
+): Promise<'shared' | 'downloaded'> {
+  const share = buildPatternShare(project)
+  const text = patternShareToText(share)
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function'
+    ) {
+      const payload: ShareData = {
+        title: `Patrón — ${project.name}`,
+        text,
+      }
+      if (!navigator.canShare || navigator.canShare(payload)) {
+        await navigator.share(payload)
+        return 'shared'
+      }
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err
+    }
+  }
+  downloadPatternShare(project)
+  return 'downloaded'
+}
+
+function patternShareToProject(raw: Record<string, unknown>): Project {
+  const name =
+    typeof raw.name === 'string' && raw.name.trim()
+      ? raw.name.trim()
+      : 'Patrón importado'
+  const incoming = Array.isArray(raw.steps) ? raw.steps : []
+  const steps: PatternStep[] = incoming
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const s = item as { row?: unknown; instruction?: unknown }
+      const instruction = String(s.instruction ?? '').trim()
+      if (!instruction) return null
+      return {
+        id: createId(),
+        row: Math.max(0, Math.round(Number(s.row) || 0)),
+        instruction,
+        done: false,
+      }
+    })
+    .filter((s): s is PatternStep => s != null)
+    .slice(0, MAX_PATTERN_STEPS)
+  if (steps.length === 0) {
+    throw new Error('El archivo de patrón no tiene instrucciones.')
+  }
+  return normalizeProject({
+    ...createProject(name),
+    notes: typeof raw.notes === 'string' ? raw.notes : '',
+    yarn: typeof raw.yarn === 'string' ? raw.yarn : '',
+    needles: typeof raw.needles === 'string' ? raw.needles : '',
+    gaugeStitches: Number(raw.gaugeStitches) || 0,
+    gaugeRows: Number(raw.gaugeRows) || 0,
+    gaugeCm: Number(raw.gaugeCm) || DEFAULT_GAUGE_CM,
+    patternSteps: steps,
+  })
+}
+
 function safeFileSlug(name: string): string {
   return (
     name
@@ -598,6 +808,10 @@ function safeFileSlug(name: string): string {
       .replace(/^-|-$/g, '')
       .slice(0, 40) || 'proyecto'
   )
+}
+
+export function fileSlug(name: string): string {
+  return safeFileSlug(name)
 }
 
 export function downloadProject(project: Project): void {
@@ -663,6 +877,14 @@ function extractProjects(raw: unknown): {
     typeof obj.project === 'object'
   ) {
     const project = normalizeProject(obj.project as Project)
+    return { projects: [project], activeId: project.id }
+  }
+
+  if (
+    (obj.app === 'AburriaKnittler' || obj.format === 1) &&
+    obj.kind === 'pattern'
+  ) {
+    const project = patternShareToProject(obj)
     return { projects: [project], activeId: project.id }
   }
 
@@ -873,9 +1095,84 @@ export function foldSearch(text: string): string {
 export function projectMatchesQuery(project: Project, query: string): boolean {
   const q = foldSearch(query.trim())
   if (!q) return true
-  return (
-    foldSearch(project.name).includes(q) || foldSearch(project.notes).includes(q)
+  const haystack = [
+    project.name,
+    project.notes,
+    project.yarn,
+    project.needles,
+  ]
+    .join(' ')
+  return foldSearch(haystack).includes(q)
+}
+
+export type ProjectFilter = 'all' | 'inProgress' | 'withPattern' | 'withPhoto' | 'withGoal'
+
+export const PROJECT_FILTERS: Array<{ id: ProjectFilter; label: string }> = [
+  { id: 'all', label: 'Todos' },
+  { id: 'inProgress', label: 'En curso' },
+  { id: 'withPattern', label: 'Con patrón' },
+  { id: 'withPhoto', label: 'Con foto' },
+  { id: 'withGoal', label: 'Con meta' },
+]
+
+export function projectMatchesFilter(
+  project: Project,
+  filter: ProjectFilter,
+): boolean {
+  if (filter === 'all') return true
+  if (filter === 'inProgress') return project.rows > 0 || project.stitches > 0
+  if (filter === 'withPattern') return project.patternSteps.length > 0
+  if (filter === 'withPhoto') return collectPhotos(project).length > 0
+  if (filter === 'withGoal') return project.targetRows > 0
+  return true
+}
+
+export function formatGauge(project: Project): string | null {
+  const bits: string[] = []
+  if (project.gaugeStitches > 0 || project.gaugeRows > 0) {
+    const cm = project.gaugeCm > 0 ? project.gaugeCm : DEFAULT_GAUGE_CM
+    const stitches =
+      project.gaugeStitches > 0 ? `${project.gaugeStitches} puntos` : null
+    const rows = project.gaugeRows > 0 ? `${project.gaugeRows} filas` : null
+    const counts = [stitches, rows].filter(Boolean).join(' × ')
+    bits.push(`Muestra ${cm} cm: ${counts}`)
+  }
+  if (project.needles.trim()) bits.push(`Aguja ${project.needles.trim()}`)
+  if (project.yarn.trim()) bits.push(project.yarn.trim())
+  if (bits.length === 0) return null
+  return bits.join(' · ')
+}
+
+export function sortedPatternSteps(steps: PatternStep[]): PatternStep[] {
+  return [...steps].sort(
+    (a, b) =>
+      a.row - b.row ||
+      a.instruction.localeCompare(b.instruction, 'es') ||
+      a.id.localeCompare(b.id),
   )
+}
+
+/** Sube o baja un paso intercambiando el número de fila con el vecino. */
+export function movePatternStep(
+  steps: PatternStep[],
+  id: string,
+  direction: -1 | 1,
+): PatternStep[] {
+  const sorted = sortedPatternSteps(steps)
+  const index = sorted.findIndex((s) => s.id === id)
+  const neighbor = index + direction
+  if (index < 0 || neighbor < 0 || neighbor >= sorted.length) return steps
+  const current = sorted[index]
+  const other = sorted[neighbor]
+  if (current.row === other.row) {
+    const nextRow = Math.max(0, current.row + direction)
+    return steps.map((s) => (s.id === current.id ? { ...s, row: nextRow } : s))
+  }
+  return steps.map((s) => {
+    if (s.id === current.id) return { ...s, row: other.row }
+    if (s.id === other.id) return { ...s, row: current.row }
+    return s
+  })
 }
 
 function isoOnLocalDay(iso: string | null | undefined, keys: Set<string>): boolean {
@@ -1015,6 +1312,8 @@ export function duplicateProject(
     sessions: [],
     timerStartedAt: null,
     archivedAt: null,
+    photos: collectPhotos(project),
+    photoDataUrl: collectPhotos(project)[0] ?? null,
     patternSteps: project.patternSteps.map((s) => ({
       ...s,
       id: createId(),

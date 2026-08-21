@@ -11,6 +11,7 @@ import {
   currentPatternStep,
   formatClock,
   formatDuration,
+  formatGauge,
   formatRelativeDate,
   goalProgress,
   groupSessionsByDay,
@@ -266,6 +267,9 @@ export function CounterPage() {
           </p>
           {active.notes.trim() ? (
             <p className="project-notes-preview">{active.notes}</p>
+          ) : null}
+          {formatGauge(active) ? (
+            <p className="project-notes-preview">{formatGauge(active)}</p>
           ) : null}
         </div>
 
