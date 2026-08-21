@@ -8,6 +8,7 @@ import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
 import { playGoalBeep, playMarkerBeep } from '../lib/sound'
 import {
+  clipLeaveNote,
   currentPatternStep,
   formatClock,
   formatDuration,
@@ -16,7 +17,10 @@ import {
   goalProgress,
   groupSessionsByDay,
   justReachedGoal,
+  MAX_LEAVE_NOTE,
   namedMarkerAt,
+  nextPendingPatternStep,
+  patternStepForRow,
   patternStepToSpeech,
   sessionMsToday,
   totalSessionMs,
@@ -92,6 +96,7 @@ export function CounterPage() {
     stopTimer,
     markOpened,
     togglePatternStep,
+    updateProject,
   } = useProjects()
   const { alerts, setAlertSound, setAlertVibrate, setSpeakStep } = usePrefs()
   const [bump, setBump] = useState(false)
@@ -111,6 +116,8 @@ export function CounterPage() {
   const soundId = useId()
   const vibeId = useId()
   const speakId = useId()
+  const leaveNoteId = useId()
+  const locked = Boolean(active?.tapsLocked)
   const prevRows = useRef(active?.rows ?? 0)
   const speakTimer = useRef<number | null>(null)
 
@@ -125,6 +132,7 @@ export function CounterPage() {
 
   const rowHold = useHoldRepeat({
     onStep: (n) => {
+      if (locked) return
       bumpRows(n)
       triggerBump()
     },
@@ -134,12 +142,14 @@ export function CounterPage() {
     holdAmount: -5,
     repeatAmount: -10,
     onStep: (n) => {
+      if (locked) return
       bumpRows(n)
       triggerBump()
     },
   })
   const stitchHold = useHoldRepeat({
     onStep: (n) => {
+      if (locked) return
       bumpStitches(n)
       triggerBump()
     },
@@ -149,6 +159,7 @@ export function CounterPage() {
     holdAmount: -5,
     repeatAmount: -10,
     onStep: (n) => {
+      if (locked) return
       bumpStitches(n)
       triggerBump()
     },
@@ -221,7 +232,12 @@ export function CounterPage() {
   useEffect(() => {
     if (!fullscreen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFullscreen(false)
+      if (e.key !== 'Escape') return
+      if (locked) {
+        if (active) updateProject(active.id, { tapsLocked: false })
+        return
+      }
+      setFullscreen(false)
     }
     window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
@@ -230,7 +246,7 @@ export function CounterPage() {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [fullscreen])
+  }, [fullscreen, locked, active, updateProject])
 
   useEffect(() => {
     return () => {
@@ -265,6 +281,18 @@ export function CounterPage() {
             Proyecto: <strong>{active.name}</strong>. Un toque suma o resta 1;
             mantén pulsado para ±5 y luego ±10.
           </p>
+          {active.photoDataUrl ? (
+            <img
+              className="counter-photo"
+              src={active.photoDataUrl}
+              alt={`Foto de ${active.name}`}
+            />
+          ) : null}
+          {active.leaveNote.trim() ? (
+            <p className="leave-note-preview">
+              Dónde lo dejé: {active.leaveNote}
+            </p>
+          ) : null}
           {active.notes.trim() ? (
             <p className="project-notes-preview">{active.notes}</p>
           ) : null}
@@ -310,29 +338,47 @@ export function CounterPage() {
           </Banner>
         )}
 
+        {locked && (
+          <Banner tone="warn" role="status">
+            Toques bloqueados. La sábana o un roce no sumarán vueltas.
+          </Banner>
+        )}
+
         {(() => {
-          const step = currentPatternStep(active)
-          if (!step) return null
+          const thisStep = patternStepForRow(active)
+          const nextStep = nextPendingPatternStep(active)
+          const showNext =
+            nextStep && (!thisStep || nextStep.id !== thisStep.id)
+          if (!thisStep && !nextStep) return null
           return (
             <Banner tone="info">
               <span>
-                Patrón — fila {step.row}: {step.instruction}
+                {thisStep
+                  ? `Esta fila ${thisStep.row}${thisStep.done ? ' (hecha)' : ''}: ${thisStep.instruction}`
+                  : nextStep
+                    ? `Siguiente — fila ${nextStep.row}: ${nextStep.instruction}`
+                    : ''}
+                {thisStep && showNext && nextStep
+                  ? ` · Luego fila ${nextStep.row}: ${nextStep.instruction}`
+                  : ''}
               </span>
               <span className="banner__actions">
-                <BigButton
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    togglePatternStep(step.id)
-                  }}
-                >
-                  Marcar hecha
-                </BigButton>
-                {canSpeak() && (
+                {thisStep && (
+                  <BigButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => togglePatternStep(thisStep.id)}
+                  >
+                    {thisStep.done ? 'Desmarcar' : 'Marcar hecha'}
+                  </BigButton>
+                )}
+                {canSpeak() && (thisStep || nextStep) && (
                   <BigButton
                     type="button"
                     variant="ghost"
                     onClick={() => {
+                      const step = thisStep ?? nextStep
+                      if (!step) return
                       if (speaking) {
                         stopSpeaking()
                         setSpeaking(false)
@@ -399,14 +445,42 @@ export function CounterPage() {
           </p>
           <div className="row-actions">
             {!active.timerStartedAt ? (
-              <BigButton type="button" variant="primary" onClick={startTimer}>
+              <BigButton
+                type="button"
+                variant="primary"
+                onClick={startTimer}
+                disabled={locked}
+              >
                 Empezar tiempo
               </BigButton>
             ) : (
-              <BigButton type="button" variant="secondary" onClick={stopTimer}>
+              <BigButton
+                type="button"
+                variant="secondary"
+                onClick={stopTimer}
+                disabled={locked}
+              >
                 Pausar / guardar
               </BigButton>
             )}
+          </div>
+          <div className="field">
+            <label htmlFor={leaveNoteId}>Dónde lo dejé</label>
+            <textarea
+              id={leaveNoteId}
+              rows={2}
+              maxLength={MAX_LEAVE_NOTE}
+              value={active.leaveNote}
+              onChange={(e) =>
+                updateProject(active.id, {
+                  leaveNote: clipLeaveNote(e.target.value),
+                })
+              }
+              placeholder="Agujas al centro, 12 derechos…"
+            />
+            <p className="muted">
+              Sale al retomar. {active.leaveNote.length}/{MAX_LEAVE_NOTE}
+            </p>
           </div>
           {active.sessions.length > 0 && (
             <SessionHistory
@@ -434,6 +508,7 @@ export function CounterPage() {
               <BigButton
                 variant="primary"
                 aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
+                disabled={locked}
                 {...rowHold}
               >
                 +1 vuelta
@@ -441,7 +516,7 @@ export function CounterPage() {
               <BigButton
                 variant="secondary"
                 aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
-                disabled={active.rows === 0}
+                disabled={locked || active.rows === 0}
                 {...rowHoldDown}
               >
                 −1
@@ -465,6 +540,7 @@ export function CounterPage() {
               <BigButton
                 variant="secondary"
                 aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
+                disabled={locked}
                 {...stitchHold}
               >
                 +1 punto
@@ -472,7 +548,7 @@ export function CounterPage() {
               <BigButton
                 variant="ghost"
                 aria-label="Restar puntos. Mantén pulsado para restar más rápido"
-                disabled={active.stitches === 0}
+                disabled={locked || active.stitches === 0}
                 {...stitchHoldDown}
               >
                 −1
@@ -489,6 +565,15 @@ export function CounterPage() {
             aria-label="Deshacer el último cambio del contador"
           >
             Deshacer
+          </BigButton>
+          <BigButton
+            variant={locked ? 'primary' : 'ghost'}
+            aria-pressed={locked}
+            onClick={() =>
+              updateProject(active.id, { tapsLocked: !active.tapsLocked })
+            }
+          >
+            {locked ? 'Desbloquear toques' : 'Bloquear toques'}
           </BigButton>
           <BigButton
             variant="secondary"
@@ -638,7 +723,7 @@ export function CounterPage() {
             resetCounters()
             triggerBump()
           }}
-          disabled={active.rows === 0 && active.stitches === 0}
+          disabled={locked || (active.rows === 0 && active.stitches === 0)}
           aria-label="Reiniciar contadores"
         >
           Reiniciar vueltas y puntos
@@ -672,12 +757,34 @@ export function CounterPage() {
 
       {fullscreen && (
         <div
-          className="counter-fs"
+          className={`counter-fs${locked ? ' counter-fs--locked' : ''}`}
           role="dialog"
           aria-modal="true"
           aria-label="Contador a pantalla completa"
         >
           <p className="counter-fs__project">{active.name}</p>
+          {active.photoDataUrl ? (
+            <img
+              className="counter-fs__photo"
+              src={active.photoDataUrl}
+              alt={`Foto de ${active.name}`}
+            />
+          ) : null}
+          {(() => {
+            const thisStep = patternStepForRow(active)
+            const nextStep = nextPendingPatternStep(active)
+            if (!thisStep && !nextStep) return null
+            return (
+              <p className="counter-fs__step">
+                {thisStep
+                  ? `Fila ${thisStep.row}${thisStep.done ? ' hecha' : ''}: ${thisStep.instruction}`
+                  : `Siguiente — fila ${nextStep?.row}: ${nextStep?.instruction}`}
+              </p>
+            )
+          })()}
+          {active.leaveNote.trim() ? (
+            <p className="counter-fs__leave">Dónde lo dejé: {active.leaveNote}</p>
+          ) : null}
           {(() => {
             const goal = goalProgress(active)
             if (!goal) return null
@@ -712,6 +819,7 @@ export function CounterPage() {
                   type="button"
                   className="counter-fs__btn counter-fs__btn--primary"
                   aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
+                  disabled={locked}
                   {...rowHold}
                 >
                   +1 vuelta
@@ -720,7 +828,7 @@ export function CounterPage() {
                   type="button"
                   className="counter-fs__btn"
                   aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
-                  disabled={active.rows === 0}
+                  disabled={locked || active.rows === 0}
                   {...rowHoldDown}
                 >
                   −1
@@ -740,6 +848,7 @@ export function CounterPage() {
                   type="button"
                   className="counter-fs__btn counter-fs__btn--primary"
                   aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
+                  disabled={locked}
                   {...stitchHold}
                 >
                   +1 punto
@@ -748,7 +857,7 @@ export function CounterPage() {
                   type="button"
                   className="counter-fs__btn"
                   aria-label="Restar puntos. Mantén pulsado para restar más rápido"
-                  disabled={active.stitches === 0}
+                  disabled={locked || active.stitches === 0}
                   {...stitchHoldDown}
                 >
                   −1
@@ -763,6 +872,16 @@ export function CounterPage() {
             disabled={active.history.length === 0}
           >
             Deshacer último toque
+          </button>
+          <button
+            type="button"
+            className={`counter-fs__close${locked ? ' counter-fs__close--lock' : ''}`}
+            aria-pressed={locked}
+            onClick={() =>
+              updateProject(active.id, { tapsLocked: !active.tapsLocked })
+            }
+          >
+            {locked ? 'Desbloquear toques' : 'Bloquear toques'}
           </button>
           <button
             type="button"

@@ -4,6 +4,8 @@ export type HistoryEntry = {
   at: string
   rows: number
   stitches: number
+  /** Pasos del patrón marcados al llegar a esta vuelta (para deshacer). */
+  autoMarkedIds?: string[]
 }
 
 export type PatternStep = {
@@ -62,6 +64,10 @@ export type Project = {
   lastOpenedAt: string | null
   /** ISO si está archivado (oculto de la lista principal) */
   archivedAt: string | null
+  /** Recado corto de dónde se dejó el tejido */
+  leaveNote: string
+  /** Bloquea sumar/restar (evita toques accidentales) */
+  tapsLocked: boolean
 }
 
 export type ProjectsState = {
@@ -78,6 +84,7 @@ export const MAX_PATTERN_STEPS = 200
 const MAX_NAMED_MARKERS = 40
 export const MAX_PHOTOS = 4
 export const DEFAULT_GAUGE_CM = 10
+export const MAX_LEAVE_NOTE = 280
 /** Sesión en curso más de 3 h: preguntar si sigue. */
 export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
 
@@ -115,6 +122,8 @@ export function createProject(name: string, notes = ''): Project {
     timerStartedAt: null,
     lastOpenedAt: now,
     archivedAt: null,
+    leaveNote: '',
+    tapsLocked: false,
   }
 }
 
@@ -292,6 +301,8 @@ function normalizeProject(p: Project): Project {
         : p.updatedAt || null,
     archivedAt:
       typeof p.archivedAt === 'string' && p.archivedAt ? p.archivedAt : null,
+    leaveNote: clipLeaveNote(String(p.leaveNote ?? '')).trim(),
+    tapsLocked: Boolean(p.tapsLocked),
   }
 }
 
@@ -345,6 +356,10 @@ export function formatDuration(ms: number): string {
   return `${s}s`
 }
 
+export function clipLeaveNote(text: string): string {
+  return text.slice(0, MAX_LEAVE_NOTE)
+}
+
 export function currentPatternStep(
   project: Project,
 ): PatternStep | null {
@@ -354,6 +369,59 @@ export function currentPatternStep(
   if (pending.length === 0) return null
   const forCurrentRow = pending.find((s) => s.row === project.rows)
   return forCurrentRow ?? pending[0]
+}
+
+/** Paso de esta vuelta (pendiente primero; si ya está hecha, la muestra igual). */
+export function patternStepForRow(
+  project: Project,
+  row = project.rows,
+): PatternStep | null {
+  const matches = project.patternSteps
+    .filter((s) => s.row === row)
+    .sort(
+      (a, b) =>
+        Number(a.done) - Number(b.done) ||
+        a.instruction.localeCompare(b.instruction, 'es'),
+    )
+  return matches[0] ?? null
+}
+
+export function nextPendingPatternStep(project: Project): PatternStep | null {
+  const pending = project.patternSteps
+    .filter((s) => !s.done)
+    .sort(
+      (a, b) =>
+        a.row - b.row || a.instruction.localeCompare(b.instruction, 'es'),
+    )
+  return pending[0] ?? null
+}
+
+/** Marca los pasos pendientes de las filas recién completadas. */
+export function applyRowAdvanceToPattern(
+  steps: PatternStep[],
+  fromRows: number,
+  toRows: number,
+): { steps: PatternStep[]; markedIds: string[] } {
+  if (toRows <= fromRows) return { steps, markedIds: [] }
+  const markedIds: string[] = []
+  const next = steps.map((s) => {
+    if (s.done) return s
+    if (s.row > fromRows && s.row <= toRows) {
+      markedIds.push(s.id)
+      return { ...s, done: true }
+    }
+    return s
+  })
+  return { steps: next, markedIds }
+}
+
+export function unmarkPatternSteps(
+  steps: PatternStep[],
+  ids: string[] | undefined,
+): PatternStep[] {
+  if (!ids || ids.length === 0) return steps
+  const set = new Set(ids)
+  return steps.map((s) => (set.has(s.id) ? { ...s, done: false } : s))
 }
 
 export function patternStepToSpeech(step: PatternStep): string {
@@ -1035,11 +1103,15 @@ export function pushHistory(
   project: Project,
   rows: number,
   stitches: number,
+  autoMarkedIds?: string[],
 ): Project {
   const entry: HistoryEntry = {
     at: new Date().toISOString(),
     rows,
     stitches,
+    ...(autoMarkedIds && autoMarkedIds.length > 0
+      ? { autoMarkedIds: [...autoMarkedIds] }
+      : {}),
   }
   return {
     ...project,
@@ -1050,8 +1122,19 @@ export function pushHistory(
 /** Restaura el contador al estado anterior al último toque. */
 export function undoLastChange(project: Project): Project {
   if (project.history.length === 0) return project
+  const latest = project.history[0]
+  const patternSteps = unmarkPatternSteps(
+    project.patternSteps,
+    latest.autoMarkedIds,
+  )
   if (project.history.length === 1) {
-    return { ...project, rows: 0, stitches: 0, history: [] }
+    return {
+      ...project,
+      rows: 0,
+      stitches: 0,
+      history: [],
+      patternSteps,
+    }
   }
   const prev = project.history[1]
   return {
@@ -1059,6 +1142,7 @@ export function undoLastChange(project: Project): Project {
     rows: Math.max(0, prev.rows),
     stitches: Math.max(0, prev.stitches),
     history: project.history.slice(1),
+    patternSteps,
   }
 }
 
@@ -1312,6 +1396,8 @@ export function duplicateProject(
     sessions: [],
     timerStartedAt: null,
     archivedAt: null,
+    leaveNote: '',
+    tapsLocked: false,
     photos: collectPhotos(project),
     photoDataUrl: collectPhotos(project)[0] ?? null,
     patternSteps: project.patternSteps.map((s) => ({
