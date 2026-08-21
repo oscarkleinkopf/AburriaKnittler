@@ -160,6 +160,18 @@ export function hasGeminiKey(): boolean {
   return Boolean(import.meta.env.VITE_GEMINI_API_KEY?.trim())
 }
 
+/** Sin clave, la foto no «ve» el tejido: solo usa el tamaño del archivo. */
+export const LOCAL_ANALYSIS_NOTICE =
+  'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano.'
+
+export function isLocalAnalysis(result: AnalyzeResult | null): boolean {
+  if (!result) return false
+  return (
+    result.confidence === 'baja' &&
+    /estimación local/i.test(result.stitchType)
+  )
+}
+
 export async function analyzeGarmentPhoto(file: File): Promise<AnalyzeResult> {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim()
   if (apiKey) {

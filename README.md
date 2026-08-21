@@ -83,7 +83,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
 8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10; deshacer el último toque
 9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
-10. **Analizar** — foto → rotar/recortar → estimación; corregir a mano; pasar al contador, a la meta o al patrón; voz alta
+10. **Analizar** — foto → rotar/recortar → estimación; sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; voz alta
 11. **Contador** — vueltas + puntos, meta (aviso al llegar, con deshacer), marcadores con nombre, pitido suave, leer el paso al completar la vuelta, pantalla completa; la pantalla no se apaga al tejer
 12. **Accesible** — Aa (letra, oscuro, contraste), botones grandes, márgenes seguros
 13. **PWA** — instalable; guía «Añadir a inicio» en la home
@@ -95,5 +95,5 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 | `npm run dev` | Desarrollo (base `/`) |
 | `npm run build:pages` | Build con base `/AburriaKnittler/` + `404.html` |
 | `npm run preview` | Vista previa del build |
-| `npm run test` | Tests del respaldo, patrón y tamaño de letra |
+| `npm run test` | Tests del respaldo, patrón, pantallas y tamaño de letra |
 | `npm run lint` | Lint |
