@@ -36,10 +36,12 @@ describe('pantallas', () => {
     expect(getByRole('button', { name: 'Con meta' })).toBeTruthy()
   })
 
-  it('counter shows the row count', () => {
-    const { getByRole } = renderPage(<CounterPage />)
+  it('counter shows the row count, leave note and lock', () => {
+    const { getByRole, getByLabelText } = renderPage(<CounterPage />)
     expect(getByRole('heading', { name: 'Contador' })).toBeTruthy()
     expect(getByRole('button', { name: /Sumar vueltas/ })).toBeTruthy()
+    expect(getByLabelText('Dónde lo dejé')).toBeTruthy()
+    expect(getByRole('button', { name: 'Bloquear toques' })).toBeTruthy()
   })
 
   it('analyze warns that local estimates are weak and offers typing by hand', () => {

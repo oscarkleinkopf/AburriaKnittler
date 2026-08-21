@@ -4,6 +4,8 @@ import {
   backupToJson,
   buildPatternShare,
   collectPhotos,
+  applyRowAdvanceToPattern,
+  clipLeaveNote,
   createProject,
   currentPatternStep,
   duplicateProject,
@@ -13,6 +15,7 @@ import {
   groupSessionsByDay,
   movePatternStep,
   nextCopyName,
+  nextPendingPatternStep,
   parseBackupJson,
   parsePatternText,
   parseRepeatSpec,
@@ -36,6 +39,7 @@ import {
   LONG_SESSION_MS,
   MAX_PATTERN_STEPS,
   namedMarkerAt,
+  patternStepForRow,
   type KnitSession,
   type PatternStep,
   type ProjectsState,
@@ -132,6 +136,39 @@ describe('currentPatternStep', () => {
   })
 })
 
+describe('patternStepForRow', () => {
+  it('prefers the pending instruction on that row', () => {
+    const project = createProject('Jersey')
+    project.rows = 12
+    project.patternSteps = [
+      { id: 'done', row: 12, instruction: 'ya', done: true },
+      { id: 'now', row: 12, instruction: '2 juntos', done: false },
+      { id: 'later', row: 20, instruction: 'cierre', done: false },
+    ]
+    expect(patternStepForRow(project)?.id).toBe('now')
+    expect(nextPendingPatternStep(project)?.id).toBe('now')
+    project.patternSteps[1].done = true
+    expect(patternStepForRow(project)?.done).toBe(true)
+    expect(nextPendingPatternStep(project)?.id).toBe('later')
+  })
+})
+
+describe('applyRowAdvanceToPattern', () => {
+  it('marks pending steps of the rows just completed', () => {
+    const steps: PatternStep[] = [
+      { id: 'a', row: 10, instruction: 'elástico', done: false },
+      { id: 'b', row: 12, instruction: 'sisa', done: false },
+      { id: 'c', row: 12, instruction: 'ya', done: true },
+      { id: 'd', row: 20, instruction: 'cierre', done: false },
+    ]
+    const { steps: next, markedIds } = applyRowAdvanceToPattern(steps, 10, 12)
+    expect(markedIds).toEqual(['b'])
+    expect(next.find((s) => s.id === 'a')?.done).toBe(false)
+    expect(next.find((s) => s.id === 'b')?.done).toBe(true)
+    expect(next.find((s) => s.id === 'd')?.done).toBe(false)
+  })
+})
+
 describe('undoLastChange', () => {
   it('restores the previous row and stitch counts', () => {
     let project = createProject('Bufanda')
@@ -155,6 +192,31 @@ describe('undoLastChange', () => {
     expect(undone.rows).toBe(0)
     expect(undone.stitches).toBe(0)
     expect(undone.history).toHaveLength(0)
+  })
+
+  it('unmarks pattern steps that were auto-completed', () => {
+    let project = createProject('Bufanda')
+    project.patternSteps = [
+      { id: 's', row: 1, instruction: 'derecho', done: false },
+    ]
+    const advanced = applyRowAdvanceToPattern(project.patternSteps, 0, 1)
+    project = {
+      ...project,
+      rows: 1,
+      patternSteps: advanced.steps,
+    }
+    project = pushHistory(project, 1, 0, advanced.markedIds)
+    expect(project.patternSteps[0].done).toBe(true)
+    const undone = undoLastChange(project)
+    expect(undone.rows).toBe(0)
+    expect(undone.patternSteps[0].done).toBe(false)
+  })
+})
+
+describe('clipLeaveNote', () => {
+  it('caps the parked note length', () => {
+    expect(clipLeaveNote('  hola  ')).toBe('  hola  ')
+    expect(clipLeaveNote('x'.repeat(400)).length).toBe(280)
   })
 })
 

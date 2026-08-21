@@ -19,7 +19,12 @@ export function HomePage() {
   const { active, state, stopTimer } = useProjects()
 
   const nextStep = active ? currentPatternStep(active) : null
-  const showResume = Boolean(active && (active.rows > 0 || active.stitches > 0))
+  const showResume = Boolean(
+    active &&
+      (active.rows > 0 ||
+        active.stitches > 0 ||
+        Boolean(active.leaveNote.trim())),
+  )
 
   return (
     <section className="hero animate-enter" aria-labelledby="brand-title">
@@ -44,6 +49,9 @@ export function HomePage() {
               {active.stitches > 0 ? ` · punto ${active.stitches}` : ''}.
               {active.lastOpenedAt
                 ? ` Última vez: ${formatRelativeDate(active.lastOpenedAt)}.`
+                : ''}
+              {active.leaveNote.trim()
+                ? ` Dónde lo dejé: ${active.leaveNote}.`
                 : ''}
               {nextStep
                 ? ` Siguiente del patrón — fila ${nextStep.row}: ${nextStep.instruction}`

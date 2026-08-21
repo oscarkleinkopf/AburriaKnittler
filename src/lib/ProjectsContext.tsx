@@ -19,8 +19,9 @@ import {
   loadState,
   MAX_PHOTOS,
   parseBackupJson,
-  removeProjectPhoto,
   pushHistory,
+  removeProjectPhoto,
+  applyRowAdvanceToPattern,
   repeatPatternRange as expandPatternRange,
   movePatternStep as shiftPatternStep,
   restoreProjectInState,
@@ -198,17 +199,34 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const bumpRows = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked) return
     patchActive((p) => {
+      const prevRows = p.rows
       const rows = Math.max(0, p.rows + delta)
-      return {
-        ...p,
+      const stitches = delta !== 0 && rows !== p.rows ? 0 : p.stitches
+      const advanced = applyRowAdvanceToPattern(
+        p.patternSteps,
+        prevRows,
         rows,
-        stitches: delta !== 0 && rows !== p.rows ? 0 : p.stitches,
-      }
-    }, true)
+      )
+      return pushHistory(
+        {
+          ...p,
+          rows,
+          stitches,
+          patternSteps: advanced.steps,
+        },
+        rows,
+        stitches,
+        advanced.markedIds,
+      )
+    })
   }, [])
 
   const bumpStitches = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked) return
     patchActive(
       (p) => ({ ...p, stitches: Math.max(0, p.stitches + delta) }),
       true,
