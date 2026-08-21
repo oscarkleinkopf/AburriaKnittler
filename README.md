@@ -74,16 +74,16 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 ## Características
 
-1. **Proyectos** — varios tejidos; buscar por nombre; archivar (y restaurar); duplicar (otra talla) conserva patrón y foto
-2. **Respaldo** — exportar / importar JSON; aviso si hace tiempo o el aparato va lleno
-3. **Patrón por filas** — instrucciones por fila; pegar o exportar texto; repetir un tramo (p. ej. filas 10–20, 4 veces); editar; leer en voz alta
+1. **Proyectos** — varios tejidos; buscar; filtros (en curso, con patrón, con foto, con meta); archivar; duplicar (otra talla) conserva patrón y fotos (hasta 4)
+2. **Respaldo** — exportar / importar JSON; aviso si hace tiempo o el aparato va lleno; importar un patrón suelto crea un proyecto nuevo
+3. **Patrón por filas** — instrucciones por fila; pegar o exportar texto; repetir un tramo; reordenar (Subir/Bajar); muestra/tensión; leer en voz alta; imprimir; compartir solo el patrón (sin fotos ni contador)
 4. **Sesiones** — temporizador; si lleva horas, pregunta si sigue; historial por día
 5. **Retomar** — al abrir, si ayer estabas tejiendo, entra en el contador; recuerda la vuelta, la meta y el siguiente paso
 6. **Alto contraste** — botón Aa → Contraste
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
 8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10; deshacer el último toque
 9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
-10. **Analizar** — foto → rotar/recortar → estimación; sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; voz alta
+10. **Analizar** — foto → rotar/recortar → estimación; sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; añade la foto a la galería del proyecto; voz alta
 11. **Contador** — vueltas + puntos, meta (aviso al llegar, con deshacer), marcadores con nombre, pitido suave, leer el paso al completar la vuelta, pantalla completa; la pantalla no se apaga al tejer
 12. **Accesible** — Aa (letra, oscuro, contraste), botones grandes, márgenes seguros
 13. **PWA** — instalable; guía «Añadir a inicio» en la home
