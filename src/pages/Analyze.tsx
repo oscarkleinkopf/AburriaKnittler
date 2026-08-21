@@ -6,6 +6,8 @@ import { ImagePrepPanel } from '../components/ImagePrepPanel'
 import {
   analyzeGarmentPhoto,
   hasGeminiKey,
+  isLocalAnalysis,
+  LOCAL_ANALYSIS_NOTICE,
   type AnalyzeResult,
 } from '../lib/analyze'
 import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
@@ -346,9 +348,15 @@ export function AnalyzePage() {
       </div>
 
       {!gemini && (
-        <Banner tone="info">
-          Estimación en el dispositivo (sin conexión a un modelo de IA). Puedes
-          corregir puntos y filas a mano y guardarlas en el proyecto.
+        <Banner tone="warn" role="status">
+          <span>{LOCAL_ANALYSIS_NOTICE}</span>
+          {!editing && (
+            <span className="banner__actions">
+              <BigButton type="button" variant="primary" onClick={startBlank}>
+                Escribir a mano
+              </BigButton>
+            </span>
+          )}
         </Banner>
       )}
 
@@ -399,18 +407,38 @@ export function AnalyzePage() {
         />
       )}
 
-      <BigButton
-        variant="primary"
-        block
-        disabled={
-          !file || !!prep || status === 'loading' || (!online && needsNetwork)
-        }
-        onClick={analyze}
-      >
-        {status === 'loading' ? 'Analizando…' : 'Obtener estimación'}
-      </BigButton>
+      {gemini ? (
+        <BigButton
+          variant="primary"
+          block
+          disabled={
+            !file || !!prep || status === 'loading' || (!online && needsNetwork)
+          }
+          onClick={analyze}
+        >
+          {status === 'loading' ? 'Analizando…' : 'Obtener estimación'}
+        </BigButton>
+      ) : (
+        <>
+          {!result && !editing && (
+            <BigButton variant="primary" block onClick={startBlank}>
+              Escribir conteo a mano
+            </BigButton>
+          )}
+          <BigButton
+            variant="ghost"
+            block
+            disabled={!file || !!prep || status === 'loading'}
+            onClick={analyze}
+          >
+            {status === 'loading'
+              ? 'Estimando…'
+              : 'Estimar igual con la foto (poco preciso)'}
+          </BigButton>
+        </>
+      )}
 
-      {!result && !editing && (
+      {gemini && !result && !editing && (
         <BigButton variant="ghost" block onClick={startBlank}>
           Escribir conteo a mano
         </BigButton>
@@ -439,8 +467,10 @@ export function AnalyzePage() {
         <div className="results" aria-live="polite">
           {!editing && result && (
             <>
-              <Banner tone="info">
-                Esto es una estimación orientativa; puedes corregirla.
+              <Banner tone={isLocalAnalysis(result) ? 'warn' : 'info'}>
+                {isLocalAnalysis(result)
+                  ? 'Esta cifra sale del tamaño de la foto, no del punto. Corrígelo a mano antes de usarla.'
+                  : 'Esto es una estimación orientativa; puedes corregirla.'}
                 {active ? ' Se guarda en el proyecto activo.' : ''}
               </Banner>
               <div className="results__item">
