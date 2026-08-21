@@ -18,6 +18,7 @@ import {
   duplicateProject,
   loadState,
   MAX_PHOTOS,
+  parseBackupJson,
   removeProjectPhoto,
   pushHistory,
   repeatPatternRange as expandPatternRange,
