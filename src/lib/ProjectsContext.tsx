@@ -29,6 +29,7 @@ import {
   movePatternStep as shiftPatternStep,
   restoreProjectInState,
   saveState,
+  setCoverPhoto,
   touch,
   undoLastChange,
   updatePatternStep,
@@ -66,6 +67,7 @@ type ProjectsApi = {
   setPhoto: (dataUrl: string | null) => void
   addPhoto: (dataUrl: string) => boolean
   removePhoto: (dataUrl: string) => void
+  setCover: (dataUrl: string) => void
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
   markOpened: () => void
@@ -334,6 +336,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     patchActive((p) => removeProjectPhoto(p, dataUrl))
   }, [])
 
+  const setCover = useCallback((dataUrl: string) => {
+    if (!dataUrl) return
+    patchActive((p) => setCoverPhoto(p, dataUrl))
+  }, [])
+
   const replaceState = useCallback((next: ProjectsState) => {
     memory = next
     emit()
@@ -496,6 +503,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       addPhoto,
       removePhoto,
+      setCover,
       replaceState,
       importBackup,
       markOpened,
@@ -535,6 +543,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       addPhoto,
       removePhoto,
+      setCover,
       replaceState,
       importBackup,
       markOpened,

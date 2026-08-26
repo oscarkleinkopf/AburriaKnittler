@@ -288,6 +288,17 @@ export function removeProjectPhoto(
   }
 }
 
+export function setCoverPhoto(project: Project, dataUrl: string): Project {
+  const photos = collectPhotos(project)
+  if (!photos.includes(dataUrl)) return project
+  const next = [dataUrl, ...photos.filter((url) => url !== dataUrl)]
+  return {
+    ...project,
+    photos: next,
+    photoDataUrl: next[0] ?? null,
+  }
+}
+
 function normalizeProject(p: Project): Project {
   const photos = collectPhotos(p)
   return {

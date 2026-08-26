@@ -22,6 +22,9 @@ describe('pantallas', () => {
     expect(getByRole('button', { name: 'Compartir patrón' })).toBeTruthy()
     expect(getByRole('button', { name: 'Imprimir' })).toBeTruthy()
     expect(getByRole('heading', { name: 'Muestra / tensión' })).toBeTruthy()
+    expect(getByRole('heading', { name: 'Calculadora' })).toBeTruthy()
+    expect(getByLabelText('Ancho que quieres (cm)')).toBeTruthy()
+    expect(getByLabelText('Puntos ahora')).toBeTruthy()
     expect(getByLabelText(/Repeticiones en esta fila/)).toBeTruthy()
   })
 
