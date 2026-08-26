@@ -5,9 +5,12 @@ import { BigButton } from '../components/BigButton'
 import { ImagePrepPanel } from '../components/ImagePrepPanel'
 import {
   analyzeGarmentPhoto,
-  hasGeminiKey,
+  bundledGeminiKey,
   isLocalAnalysis,
+  loadGeminiKey,
   LOCAL_ANALYSIS_NOTICE,
+  maskGeminiKey,
+  saveGeminiKey,
   type AnalyzeResult,
 } from '../lib/analyze'
 import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
@@ -70,8 +73,11 @@ export function AnalyzePage() {
     addPatternSteps,
   } = useProjects()
   const online = useOnline()
-  const gemini = hasGeminiKey()
+  const bundled = bundledGeminiKey()
+  const [personalKey, setPersonalKey] = useState(() => loadGeminiKey())
+  const gemini = Boolean(personalKey || bundled)
   const inputId = useId()
+  const keyId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const stitchesId = useId()
   const rowsId = useId()
@@ -92,6 +98,7 @@ export function AnalyzePage() {
   const [draft, setDraft] = useState<AnalyzeResult>(emptyDraft)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [speaking, setSpeaking] = useState(false)
+  const [keyDraft, setKeyDraft] = useState('')
 
   useEffect(() => {
     setResult(active?.lastAnalysis ?? null)
@@ -223,6 +230,27 @@ export function AnalyzePage() {
     setEditing(true)
     setStatus('done')
     setSaveMsg(null)
+  }
+
+  function onSaveKey(e: FormEvent) {
+    e.preventDefault()
+    const next = keyDraft.trim()
+    if (!next) {
+      setError('Pega la clave de Gemini para guardar.')
+      return
+    }
+    saveGeminiKey(next)
+    setPersonalKey(next)
+    setKeyDraft('')
+    setError(null)
+    setSaveMsg('Clave guardada en este aparato. Ya puedes analizar con IA.')
+  }
+
+  function onClearKey() {
+    saveGeminiKey('')
+    setPersonalKey('')
+    setKeyDraft('')
+    setSaveMsg('Clave quitada de este aparato.')
   }
 
   function saveEdit(e: FormEvent) {
@@ -364,6 +392,56 @@ export function AnalyzePage() {
           )}
         </Banner>
       )}
+
+      <form className="stack" onSubmit={onSaveKey}>
+        <h2 className="section-title">Clave de Gemini</h2>
+        <p className="muted">
+          Para que la foto vea el tejido. Se queda en este aparato, no va en el
+          respaldo del proyecto.{' '}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Pedir clave en Google AI Studio
+          </a>
+          .
+        </p>
+        {personalKey ? (
+          <p className="calc-result">Guardada {maskGeminiKey(personalKey)}</p>
+        ) : bundled ? (
+          <p className="muted">
+            Este sitio trae una clave de build. Mejor usa una tuya: la de build
+            queda en el JavaScript público.
+          </p>
+        ) : null}
+        <div className="field">
+          <label htmlFor={keyId}>Clave de Gemini</label>
+          <input
+            id={keyId}
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={keyDraft}
+            onChange={(e) => setKeyDraft(e.target.value)}
+            placeholder="AIza…"
+          />
+        </div>
+        <div className="row-actions">
+          <BigButton
+            type="submit"
+            variant="secondary"
+            disabled={!keyDraft.trim()}
+          >
+            Guardar clave
+          </BigButton>
+          {personalKey ? (
+            <BigButton type="button" variant="ghost" onClick={onClearKey}>
+              Quitar clave
+            </BigButton>
+          ) : null}
+        </div>
+      </form>
 
       {!online && needsNetwork && (
         <Banner tone="warn" role="alert">

@@ -1,6 +1,6 @@
 import { fireEvent } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { LOCAL_ANALYSIS_NOTICE } from '../lib/analyze'
+import { LOCAL_ANALYSIS_NOTICE, saveGeminiKey } from '../lib/analyze'
 import { AnalyzePage } from './Analyze'
 import { CounterPage } from './Counter'
 import { HomePage } from './Home'
@@ -152,9 +152,13 @@ describe('pantallas', () => {
   })
 
   it('analyze warns that local estimates are weak and offers typing by hand', () => {
-    const { getByRole, getByText } = renderPage(<AnalyzePage />)
+    saveGeminiKey('')
+    const { getByRole, getByText, getByLabelText } = renderPage(<AnalyzePage />)
     expect(getByRole('heading', { name: 'Analizar tejido' })).toBeTruthy()
     expect(getByText(LOCAL_ANALYSIS_NOTICE)).toBeTruthy()
+    expect(getByLabelText('Clave de Gemini')).toBeTruthy()
+    expect(getByRole('button', { name: 'Guardar clave' })).toBeTruthy()
+    expect(getByRole('link', { name: /Google AI Studio/ })).toBeTruthy()
     expect(
       getByRole('button', { name: 'Escribir conteo a mano' }),
     ).toBeTruthy()
@@ -165,5 +169,17 @@ describe('pantallas', () => {
     fireEvent.click(getByRole('button', { name: 'Escribir a mano' }))
     expect(getByRole('heading', { name: 'Corregir resultado' })).toBeTruthy()
     expect(getByRole('button', { name: 'Guardar corrección' })).toBeTruthy()
+  })
+
+  it('lets you save a Gemini key on the device', () => {
+    saveGeminiKey('')
+    const { getByLabelText, getByRole, getByText } = renderPage(<AnalyzePage />)
+    fireEvent.change(getByLabelText('Clave de Gemini'), {
+      target: { value: 'AIzaSyTestKey1234' },
+    })
+    fireEvent.click(getByRole('button', { name: 'Guardar clave' }))
+    expect(getByText(/Guardada ••••1234/)).toBeTruthy()
+    expect(getByRole('button', { name: 'Obtener estimación' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Quitar clave' })).toBeTruthy()
   })
 })
