@@ -7,12 +7,19 @@ import {
   currentPatternStep,
   fileSlug,
   formatGauge,
+  formatRowSide,
+  formatStepRepeat,
+  MAX_STEP_REPEATS,
   parsePatternText,
   parseRepeatSpec,
+  patternStepForRow,
   patternStepToSpeech,
   patternStepsToText,
+  nextPendingPatternStep,
   sharePattern,
   sortedPatternSteps,
+  stepRepeatDone,
+  stepRepeatTimes,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 
@@ -23,6 +30,7 @@ export function PatternPage() {
     addPatternSteps,
     repeatPatternRange,
     togglePatternStep,
+    bumpStepRepeat,
     updatePatternStep,
     removePatternStep,
     movePatternStep,
@@ -33,6 +41,7 @@ export function PatternPage() {
   const instrId = useId()
   const [row, setRow] = useState(() => String(active?.rows ?? 1))
   const [instruction, setInstruction] = useState('')
+  const [inRowRepeats, setInRowRepeats] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [hideDone, setHideDone] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -41,6 +50,8 @@ export function PatternPage() {
   const pasteId = useId()
   const [editRow, setEditRow] = useState('')
   const [editInstruction, setEditInstruction] = useState('')
+  const [editRepeat, setEditRepeat] = useState('')
+  const stepRepeatId = useId()
   const [repeatText, setRepeatText] = useState('')
   const [repeatFrom, setRepeatFrom] = useState('')
   const [repeatTo, setRepeatTo] = useState('')
@@ -75,11 +86,23 @@ export function PatternPage() {
   }, [active, hideDone])
 
   const nextStep = active ? currentPatternStep(active) : null
+  const thisStep = active ? patternStepForRow(active) : null
+  const pendingNext = active ? nextPendingPatternStep(active) : null
+  const highlightId =
+    thisStep && !(hideDone && thisStep.done)
+      ? thisStep.id
+      : pendingNext?.id ?? null
   const doneCount = active?.patternSteps.filter((s) => s.done).length ?? 0
   const orderIds = useMemo(
     () => (active ? sortedPatternSteps(active.patternSteps).map((s) => s.id) : []),
     [active],
   )
+
+  useEffect(() => {
+    if (!highlightId) return
+    const el = document.getElementById(`pattern-step-${highlightId}`)
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [highlightId, hideDone, active?.rows])
 
   function onAdd(e: FormEvent) {
     e.preventDefault()
@@ -93,8 +116,11 @@ export function PatternPage() {
       setMessage('Escribe la instrucción de la fila.')
       return
     }
-    addPatternStep(n, instruction)
+    const timesRaw = Number.parseInt(inRowRepeats, 10)
+    const times = Number.isFinite(timesRaw) ? timesRaw : 0
+    addPatternStep(n, instruction, times)
     setInstruction('')
+    setInRowRepeats('')
     setRow(String(n + 1))
     setMessage(`Añadida instrucción para la fila ${n}.`)
   }
@@ -211,6 +237,7 @@ export function PatternPage() {
     setEditingId(id)
     setEditRow(String(step.row))
     setEditInstruction(step.instruction)
+    setEditRepeat(stepRepeatTimes(step) ? String(stepRepeatTimes(step)) : '')
   }
 
   function saveEdit(e: FormEvent) {
@@ -221,9 +248,11 @@ export function PatternPage() {
       setMessage('Indica un número de fila válido.')
       return
     }
+    const timesRaw = Number.parseInt(editRepeat, 10)
     updatePatternStep(editingId, {
       row: n,
       instruction: editInstruction,
+      repeatTimes: Number.isFinite(timesRaw) ? timesRaw : 0,
     })
     setEditingId(null)
     setMessage(`Fila ${n} actualizada.`)
@@ -252,6 +281,11 @@ export function PatternPage() {
         </p>
         {formatGauge(active) ? (
           <p className="project-notes-preview">{formatGauge(active)}</p>
+        ) : null}
+        {formatRowSide(active.rows, active.sideMode) ? (
+          <p className="project-notes-preview">
+            {formatRowSide(active.rows, active.sideMode)}
+          </p>
         ) : null}
       </div>
 
@@ -330,6 +364,21 @@ export function PatternPage() {
             onChange={(e) => setInstruction(e.target.value)}
             placeholder="Ej. 2 juntos, lazada, derecho hasta el final"
             required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={stepRepeatId}>
+            Repeticiones en esta fila (0 = no)
+          </label>
+          <input
+            id={stepRepeatId}
+            type="number"
+            min={0}
+            max={MAX_STEP_REPEATS}
+            inputMode="numeric"
+            value={inRowRepeats}
+            onChange={(e) => setInRowRepeats(e.target.value)}
+            placeholder="0"
           />
         </div>
         <BigButton type="submit" variant="secondary" block>
@@ -573,7 +622,8 @@ export function PatternPage() {
             {sorted.map((step) => (
               <li
                 key={step.id}
-                className={`pattern-item${step.done ? ' pattern-item--done' : ''}`}
+                id={`pattern-step-${step.id}`}
+                className={`pattern-item${step.done ? ' pattern-item--done' : ''}${step.id === highlightId ? ' pattern-item--current' : ''}`}
               >
                 {editingId === step.id ? (
                   <form className="stack" onSubmit={saveEdit}>
@@ -601,6 +651,20 @@ export function PatternPage() {
                         required
                       />
                     </div>
+                    <div className="field">
+                      <label htmlFor={`edit-repeat-${step.id}`}>
+                        Repeticiones (0 = no)
+                      </label>
+                      <input
+                        id={`edit-repeat-${step.id}`}
+                        type="number"
+                        min={0}
+                        max={MAX_STEP_REPEATS}
+                        inputMode="numeric"
+                        value={editRepeat}
+                        onChange={(e) => setEditRepeat(e.target.value)}
+                      />
+                    </div>
                     <div className="row-actions">
                       <BigButton type="submit" variant="primary">
                         Guardar
@@ -617,8 +681,16 @@ export function PatternPage() {
                 ) : (
                   <>
                     <div>
-                      <p className="pattern-item__row">Fila {step.row}</p>
+                      <p className="pattern-item__row">
+                        Fila {step.row}
+                        {step.id === highlightId ? ' · ahora' : ''}
+                      </p>
                       <p className="pattern-item__text">{step.instruction}</p>
+                      {formatStepRepeat(step) ? (
+                        <p className="pattern-item__repeat">
+                          {formatStepRepeat(step)}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="row-actions">
                       <BigButton
@@ -628,6 +700,28 @@ export function PatternPage() {
                       >
                         {step.done ? 'Desmarcar' : 'Hecha'}
                       </BigButton>
+                      {stepRepeatTimes(step) > 0 && (
+                        <>
+                          <BigButton
+                            type="button"
+                            variant="secondary"
+                            disabled={
+                              stepRepeatDone(step) >= stepRepeatTimes(step)
+                            }
+                            onClick={() => bumpStepRepeat(step.id, 1)}
+                          >
+                            +1 repe
+                          </BigButton>
+                          <BigButton
+                            type="button"
+                            variant="ghost"
+                            disabled={stepRepeatDone(step) === 0}
+                            onClick={() => bumpStepRepeat(step.id, -1)}
+                          >
+                            −1
+                          </BigButton>
+                        </>
+                      )}
                       <BigButton
                         type="button"
                         variant="ghost"

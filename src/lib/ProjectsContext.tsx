@@ -12,12 +12,15 @@ import {
   addProjectPhoto,
   applyAnalysisToCounters,
   archiveProjectInState,
+  bumpPatternRepeat,
   collectPhotos,
   createId,
   createProject,
   duplicateProject,
+  hasPiece,
   loadState,
   MAX_PHOTOS,
+  MAX_STEP_REPEATS,
   parseBackupJson,
   pushHistory,
   removeProjectPhoto,
@@ -50,6 +53,8 @@ type ProjectsApi = {
   deleteProject: (id: string) => void
   bumpRows: (delta: number) => void
   bumpStitches: (delta: number) => void
+  bumpPieceRows: (delta: number) => void
+  bumpPieceStitches: (delta: number) => void
   undoLast: () => void
   resetCounters: () => void
   setMarkerEvery: (n: number) => void
@@ -64,7 +69,11 @@ type ProjectsApi = {
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
   markOpened: () => void
-  addPatternStep: (row: number, instruction: string) => void
+  addPatternStep: (
+    row: number,
+    instruction: string,
+    repeatTimes?: number,
+  ) => void
   addPatternSteps: (steps: PatternStep[]) => void
   repeatPatternRange: (
     from: number,
@@ -72,9 +81,10 @@ type ProjectsApi = {
     times: number,
   ) => RepeatRangeResult
   togglePatternStep: (stepId: string) => void
+  bumpStepRepeat: (stepId: string, delta: number) => void
   updatePatternStep: (
     stepId: string,
-    patch: { row?: number; instruction?: string },
+    patch: { row?: number; instruction?: string; repeatTimes?: number },
   ) => void
   removePatternStep: (stepId: string) => void
   movePatternStep: (stepId: string, direction: -1 | 1) => void
@@ -233,6 +243,30 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const bumpPieceRows = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked || !hasPiece(current)) return
+    patchActive((p) => {
+      const pieceRows = Math.max(0, p.pieceRows + delta)
+      const pieceStitches =
+        delta !== 0 && pieceRows !== p.pieceRows ? 0 : p.pieceStitches
+      return pushHistory(
+        { ...p, pieceRows, pieceStitches },
+        p.rows,
+        p.stitches,
+      )
+    })
+  }, [])
+
+  const bumpPieceStitches = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked || !hasPiece(current)) return
+    patchActive((p) => {
+      const pieceStitches = Math.max(0, p.pieceStitches + delta)
+      return pushHistory({ ...p, pieceStitches }, p.rows, p.stitches)
+    })
+  }, [])
+
   const undoLast = useCallback(() => {
     patchActive((p) => undoLastChange(p))
   }, [])
@@ -319,20 +353,29 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const addPatternStep = useCallback((row: number, instruction: string) => {
-    const text = instruction.trim()
-    if (!text) return
-    const step: PatternStep = {
-      id: createId(),
-      row: Math.max(0, Math.round(row)),
-      instruction: text,
-      done: false,
-    }
-    patchActive((p) => ({
-      ...p,
-      patternSteps: [...p.patternSteps, step],
-    }))
-  }, [])
+  const addPatternStep = useCallback(
+    (row: number, instruction: string, repeatTimes = 0) => {
+      const text = instruction.trim()
+      if (!text) return
+      const times = Math.min(
+        MAX_STEP_REPEATS,
+        Math.max(0, Math.round(repeatTimes) || 0),
+      )
+      const step: PatternStep = {
+        id: createId(),
+        row: Math.max(0, Math.round(row)),
+        instruction: text,
+        done: false,
+        repeatTimes: times,
+        repeatDone: 0,
+      }
+      patchActive((p) => ({
+        ...p,
+        patternSteps: [...p.patternSteps, step],
+      }))
+    },
+    [],
+  )
 
   const addPatternSteps = useCallback((steps: PatternStep[]) => {
     if (steps.length === 0) return
@@ -363,8 +406,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const bumpStepRepeat = useCallback((stepId: string, delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked) return
+    patchActive((p) => ({
+      ...p,
+      patternSteps: bumpPatternRepeat(p.patternSteps, stepId, delta),
+    }))
+  }, [])
+
   const updateStep = useCallback(
-    (stepId: string, patch: { row?: number; instruction?: string }) => {
+    (
+      stepId: string,
+      patch: { row?: number; instruction?: string; repeatTimes?: number },
+    ) => {
       patchActive((p) => updatePatternStep(p, stepId, patch))
     },
     [],
@@ -428,6 +483,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      bumpPieceRows,
+      bumpPieceStitches,
       undoLast,
       resetCounters,
       setMarkerEvery,
@@ -446,6 +503,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addPatternSteps,
       repeatPatternRange: repeatRange,
       togglePatternStep,
+      bumpStepRepeat,
       updatePatternStep: updateStep,
       removePatternStep,
       movePatternStep: moveStep,
@@ -464,6 +522,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      bumpPieceRows,
+      bumpPieceStitches,
       undoLast,
       resetCounters,
       setMarkerEvery,
@@ -482,6 +542,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addPatternSteps,
       repeatRange,
       togglePatternStep,
+      bumpStepRepeat,
       updateStep,
       removePatternStep,
       moveStep,

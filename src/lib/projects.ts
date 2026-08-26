@@ -6,6 +6,8 @@ export type HistoryEntry = {
   stitches: number
   /** Pasos del patrón marcados al llegar a esta vuelta (para deshacer). */
   autoMarkedIds?: string[]
+  pieceRows?: number
+  pieceStitches?: number
 }
 
 export type PatternStep = {
@@ -14,6 +16,9 @@ export type PatternStep = {
   row: number
   instruction: string
   done: boolean
+  /** 0 o ausente = sin contador de repeticiones en la fila */
+  repeatTimes?: number
+  repeatDone?: number
 }
 
 export type KnitSession = {
@@ -22,6 +27,8 @@ export type KnitSession = {
   endedAt: string
   durationMs: number
 }
+
+export type SideMode = 'flat' | 'round' | 'off'
 
 export type NamedMarker = {
   id: string
@@ -68,6 +75,12 @@ export type Project = {
   leaveNote: string
   /** Bloquea sumar/restar (evita toques accidentales) */
   tapsLocked: boolean
+  /** Segunda pieza (manga, cuello…). Vacío = oculta. */
+  pieceLabel: string
+  pieceRows: number
+  pieceStitches: number
+  /** Derecho/revés según la vuelta */
+  sideMode: SideMode
 }
 
 export type ProjectsState = {
@@ -85,6 +98,9 @@ const MAX_NAMED_MARKERS = 40
 export const MAX_PHOTOS = 4
 export const DEFAULT_GAUGE_CM = 10
 export const MAX_LEAVE_NOTE = 280
+export const MAX_STEP_REPEATS = 80
+export const MAX_PIECE_LABEL = 32
+export const DEFAULT_PIECE_LABEL = 'Manga'
 /** Sesión en curso más de 3 h: preguntar si sigue. */
 export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
 
@@ -124,6 +140,10 @@ export function createProject(name: string, notes = ''): Project {
     archivedAt: null,
     leaveNote: '',
     tapsLocked: false,
+    pieceLabel: '',
+    pieceRows: 0,
+    pieceStitches: 0,
+    sideMode: 'flat',
   }
 }
 
@@ -186,11 +206,21 @@ export function loadState(): ProjectsState {
 }
 
 function normalizePatternStep(s: PatternStep): PatternStep {
+  const repeatTimes = Math.min(
+    MAX_STEP_REPEATS,
+    Math.max(0, Math.round(Number(s.repeatTimes) || 0)),
+  )
+  const repeatDone = Math.min(
+    repeatTimes,
+    Math.max(0, Math.round(Number(s.repeatDone) || 0)),
+  )
   return {
     id: s.id || createId(),
     row: Math.max(0, Math.round(Number(s.row) || 0)),
     instruction: String(s.instruction ?? '').trim() || 'Sin instrucción',
     done: Boolean(s.done),
+    repeatTimes,
+    repeatDone,
   }
 }
 
@@ -303,6 +333,10 @@ function normalizeProject(p: Project): Project {
       typeof p.archivedAt === 'string' && p.archivedAt ? p.archivedAt : null,
     leaveNote: clipLeaveNote(String(p.leaveNote ?? '')).trim(),
     tapsLocked: Boolean(p.tapsLocked),
+    pieceLabel: clipPieceLabel(String(p.pieceLabel ?? '')),
+    pieceRows: Math.max(0, Math.round(Number(p.pieceRows) || 0)),
+    pieceStitches: Math.max(0, Math.round(Number(p.pieceStitches) || 0)),
+    sideMode: normalizeSideMode(p.sideMode),
   }
 }
 
@@ -358,6 +392,57 @@ export function formatDuration(ms: number): string {
 
 export function clipLeaveNote(text: string): string {
   return text.slice(0, MAX_LEAVE_NOTE)
+}
+
+export function clipPieceLabel(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, MAX_PIECE_LABEL)
+}
+
+export function hasPiece(project: Project): boolean {
+  return Boolean(project.pieceLabel.trim())
+}
+
+export function normalizeSideMode(value: unknown): SideMode {
+  if (value === 'round' || value === 'off' || value === 'flat') return value
+  return 'flat'
+}
+
+export function formatRowSide(row: number, mode: SideMode): string | null {
+  if (mode === 'off' || row <= 0) return null
+  if (mode === 'round') return 'Circular · del derecho'
+  return row % 2 === 1
+    ? 'Vuelta impar · del derecho'
+    : 'Vuelta par · del revés'
+}
+
+export function stepRepeatTimes(step: PatternStep): number {
+  return Math.max(0, Math.round(Number(step.repeatTimes) || 0))
+}
+
+export function stepRepeatDone(step: PatternStep): number {
+  const times = stepRepeatTimes(step)
+  return Math.min(times, Math.max(0, Math.round(Number(step.repeatDone) || 0)))
+}
+
+export function formatStepRepeat(step: PatternStep): string | null {
+  const times = stepRepeatTimes(step)
+  if (times <= 0) return null
+  return `Van ${stepRepeatDone(step)} de ${times}`
+}
+
+export function bumpPatternRepeat(
+  steps: PatternStep[],
+  id: string,
+  delta: number,
+): PatternStep[] {
+  if (!delta) return steps
+  return steps.map((s) => {
+    if (s.id !== id) return s
+    const times = stepRepeatTimes(s)
+    if (times <= 0) return s
+    const next = Math.min(times, Math.max(0, stepRepeatDone(s) + delta))
+    return { ...s, repeatTimes: times, repeatDone: next }
+  })
 }
 
 export function currentPatternStep(
@@ -606,6 +691,8 @@ export function repeatPatternRange(
         row: step.row + i * span,
         instruction: step.instruction,
         done: false,
+        repeatTimes: stepRepeatTimes(step) || undefined,
+        repeatDone: 0,
       })
     }
   }
@@ -1109,6 +1196,8 @@ export function pushHistory(
     at: new Date().toISOString(),
     rows,
     stitches,
+    pieceRows: project.pieceRows,
+    pieceStitches: project.pieceStitches,
     ...(autoMarkedIds && autoMarkedIds.length > 0
       ? { autoMarkedIds: [...autoMarkedIds] }
       : {}),
@@ -1132,6 +1221,8 @@ export function undoLastChange(project: Project): Project {
       ...project,
       rows: 0,
       stitches: 0,
+      pieceRows: latest.pieceRows != null ? 0 : project.pieceRows,
+      pieceStitches: latest.pieceStitches != null ? 0 : project.pieceStitches,
       history: [],
       patternSteps,
     }
@@ -1141,6 +1232,12 @@ export function undoLastChange(project: Project): Project {
     ...project,
     rows: Math.max(0, prev.rows),
     stitches: Math.max(0, prev.stitches),
+    pieceRows:
+      prev.pieceRows != null ? Math.max(0, prev.pieceRows) : project.pieceRows,
+    pieceStitches:
+      prev.pieceStitches != null
+        ? Math.max(0, prev.pieceStitches)
+        : project.pieceStitches,
     history: project.history.slice(1),
     patternSteps,
   }
@@ -1346,7 +1443,7 @@ export function restoreProjectInState(
 export function updatePatternStep(
   project: Project,
   stepId: string,
-  patch: { row?: number; instruction?: string },
+  patch: { row?: number; instruction?: string; repeatTimes?: number },
 ): Project {
   return {
     ...project,
@@ -1358,7 +1455,15 @@ export function updatePatternStep(
           : s.instruction
       const row =
         patch.row === undefined ? s.row : Math.max(0, Math.round(patch.row))
-      return { ...s, instruction, row }
+      const repeatTimes =
+        patch.repeatTimes === undefined
+          ? stepRepeatTimes(s)
+          : Math.min(
+              MAX_STEP_REPEATS,
+              Math.max(0, Math.round(patch.repeatTimes)),
+            )
+      const repeatDone = Math.min(repeatTimes, stepRepeatDone(s))
+      return { ...s, instruction, row, repeatTimes, repeatDone }
     }),
   }
 }
@@ -1398,12 +1503,15 @@ export function duplicateProject(
     archivedAt: null,
     leaveNote: '',
     tapsLocked: false,
+    pieceRows: 0,
+    pieceStitches: 0,
     photos: collectPhotos(project),
     photoDataUrl: collectPhotos(project)[0] ?? null,
     patternSteps: project.patternSteps.map((s) => ({
       ...s,
       id: createId(),
       done: false,
+      repeatDone: 0,
     })),
     namedMarkers: project.namedMarkers.map((m) => ({
       ...m,

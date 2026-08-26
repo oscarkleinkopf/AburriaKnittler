@@ -9,22 +9,31 @@ import { vibrateBrief } from '../lib/prefs'
 import { playGoalBeep, playMarkerBeep } from '../lib/sound'
 import {
   clipLeaveNote,
+  clipPieceLabel,
   currentPatternStep,
+  DEFAULT_PIECE_LABEL,
   formatClock,
   formatDuration,
   formatGauge,
   formatRelativeDate,
+  formatRowSide,
+  formatStepRepeat,
   goalProgress,
   groupSessionsByDay,
+  hasPiece,
   justReachedGoal,
   MAX_LEAVE_NOTE,
+  MAX_PIECE_LABEL,
   namedMarkerAt,
   nextPendingPatternStep,
   patternStepForRow,
   patternStepToSpeech,
   sessionMsToday,
+  stepRepeatDone,
+  stepRepeatTimes,
   totalSessionMs,
   type KnitSession,
+  type SideMode,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
@@ -86,6 +95,8 @@ export function CounterPage() {
     active,
     bumpRows,
     bumpStitches,
+    bumpPieceRows,
+    bumpPieceStitches,
     undoLast,
     resetCounters,
     setMarkerEvery,
@@ -96,6 +107,7 @@ export function CounterPage() {
     stopTimer,
     markOpened,
     togglePatternStep,
+    bumpStepRepeat,
     updateProject,
   } = useProjects()
   const { alerts, setAlertSound, setAlertVibrate, setSpeakStep } = usePrefs()
@@ -117,7 +129,9 @@ export function CounterPage() {
   const vibeId = useId()
   const speakId = useId()
   const leaveNoteId = useId()
+  const pieceLabelId = useId()
   const locked = Boolean(active?.tapsLocked)
+  const pieceOn = Boolean(active && hasPiece(active))
   const prevRows = useRef(active?.rows ?? 0)
   const speakTimer = useRef<number | null>(null)
 
@@ -161,6 +175,40 @@ export function CounterPage() {
     onStep: (n) => {
       if (locked) return
       bumpStitches(n)
+      triggerBump()
+    },
+  })
+  const pieceRowHold = useHoldRepeat({
+    onStep: (n) => {
+      if (locked) return
+      bumpPieceRows(n)
+      triggerBump()
+    },
+  })
+  const pieceRowHoldDown = useHoldRepeat({
+    tapAmount: -1,
+    holdAmount: -5,
+    repeatAmount: -10,
+    onStep: (n) => {
+      if (locked) return
+      bumpPieceRows(n)
+      triggerBump()
+    },
+  })
+  const pieceStitchHold = useHoldRepeat({
+    onStep: (n) => {
+      if (locked) return
+      bumpPieceStitches(n)
+      triggerBump()
+    },
+  })
+  const pieceStitchHoldDown = useHoldRepeat({
+    tapAmount: -1,
+    holdAmount: -5,
+    repeatAmount: -10,
+    onStep: (n) => {
+      if (locked) return
+      bumpPieceStitches(n)
       triggerBump()
     },
   })
@@ -372,6 +420,32 @@ export function CounterPage() {
                     {thisStep.done ? 'Desmarcar' : 'Marcar hecha'}
                   </BigButton>
                 )}
+                {thisStep && stepRepeatTimes(thisStep) > 0 && (
+                  <>
+                    <span className="repeat-progress">
+                      {formatStepRepeat(thisStep)}
+                    </span>
+                    <BigButton
+                      type="button"
+                      variant="secondary"
+                      disabled={
+                        locked ||
+                        stepRepeatDone(thisStep) >= stepRepeatTimes(thisStep)
+                      }
+                      onClick={() => bumpStepRepeat(thisStep.id, 1)}
+                    >
+                      +1 repetición
+                    </BigButton>
+                    <BigButton
+                      type="button"
+                      variant="ghost"
+                      disabled={locked || stepRepeatDone(thisStep) === 0}
+                      onClick={() => bumpStepRepeat(thisStep.id, -1)}
+                    >
+                      −1
+                    </BigButton>
+                  </>
+                )}
                 {canSpeak() && (thisStep || nextStep) && (
                   <BigButton
                     type="button"
@@ -504,6 +578,11 @@ export function CounterPage() {
             >
               {active.rows}
             </div>
+            {formatRowSide(active.rows, active.sideMode) ? (
+              <p className="counter-side">
+                {formatRowSide(active.rows, active.sideMode)}
+              </p>
+            ) : null}
             <div className="counter-mini-actions">
               <BigButton
                 variant="primary"
@@ -556,6 +635,125 @@ export function CounterPage() {
             </div>
           </div>
         </div>
+
+        {pieceOn ? (
+          <div className="piece-panel stack">
+            <h2 className="section-title">Segunda pieza</h2>
+            <div className="field">
+              <label htmlFor={pieceLabelId}>Nombre</label>
+              <input
+                id={pieceLabelId}
+                value={active.pieceLabel}
+                maxLength={MAX_PIECE_LABEL}
+                onChange={(e) =>
+                  updateProject(active.id, {
+                    pieceLabel: clipPieceLabel(e.target.value) || DEFAULT_PIECE_LABEL,
+                  })
+                }
+                placeholder={DEFAULT_PIECE_LABEL}
+              />
+            </div>
+            <div className="counter-grid">
+              <div className="counter-display counter-display--secondary">
+                <div className="counter-display__label" id="piece-row-label">
+                  Vueltas · {active.pieceLabel}
+                </div>
+                <div
+                  className={`counter-display__value counter-display__value--sm${bump ? ' animate-bump' : ''}`}
+                  aria-labelledby="piece-row-label"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {active.pieceRows}
+                </div>
+                <div className="counter-mini-actions">
+                  <BigButton
+                    variant="primary"
+                    aria-label={`Sumar vueltas de ${active.pieceLabel}`}
+                    disabled={locked}
+                    {...pieceRowHold}
+                  >
+                    +1 vuelta
+                  </BigButton>
+                  <BigButton
+                    variant="secondary"
+                    aria-label={`Restar vueltas de ${active.pieceLabel}`}
+                    disabled={locked || active.pieceRows === 0}
+                    {...pieceRowHoldDown}
+                  >
+                    −1
+                  </BigButton>
+                </div>
+              </div>
+              <div className="counter-display counter-display--secondary">
+                <div className="counter-display__label" id="piece-stitch-label">
+                  Punto · {active.pieceLabel}
+                </div>
+                <div
+                  className={`counter-display__value counter-display__value--sm${bump ? ' animate-bump' : ''}`}
+                  aria-labelledby="piece-stitch-label"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {active.pieceStitches}
+                </div>
+                <div className="counter-mini-actions">
+                  <BigButton
+                    variant="secondary"
+                    aria-label={`Sumar puntos de ${active.pieceLabel}`}
+                    disabled={locked}
+                    {...pieceStitchHold}
+                  >
+                    +1 punto
+                  </BigButton>
+                  <BigButton
+                    variant="ghost"
+                    aria-label={`Restar puntos de ${active.pieceLabel}`}
+                    disabled={locked || active.pieceStitches === 0}
+                    {...pieceStitchHoldDown}
+                  >
+                    −1
+                  </BigButton>
+                </div>
+              </div>
+            </div>
+            <BigButton
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `¿Quitar el contador de «${active.pieceLabel}»? Las vueltas de esa pieza se pierden.`,
+                  )
+                ) {
+                  return
+                }
+                updateProject(active.id, {
+                  pieceLabel: '',
+                  pieceRows: 0,
+                  pieceStitches: 0,
+                })
+              }}
+            >
+              Quitar segunda pieza
+            </BigButton>
+          </div>
+        ) : (
+          <BigButton
+            type="button"
+            variant="ghost"
+            block
+            onClick={() =>
+              updateProject(active.id, {
+                pieceLabel: DEFAULT_PIECE_LABEL,
+                pieceRows: 0,
+                pieceStitches: 0,
+              })
+            }
+          >
+            Añadir segunda pieza (manga…)
+          </BigButton>
+        )}
 
         <div className="counter-toolbar">
           <BigButton
@@ -677,6 +875,28 @@ export function CounterPage() {
         </div>
 
         <fieldset className="alert-prefs">
+          <legend className="section-title">Derecho / revés</legend>
+          {(
+            [
+              ['flat', 'Plano (impar derecho, par revés)'],
+              ['round', 'Circular (siempre derecho)'],
+              ['off', 'No avisar'],
+            ] as Array<[SideMode, string]>
+          ).map(([id, label]) => (
+            <label className="backup-mode" key={id} htmlFor={`side-${id}`}>
+              <input
+                id={`side-${id}`}
+                type="radio"
+                name="side-mode"
+                checked={active.sideMode === id}
+                onChange={() => updateProject(active.id, { sideMode: id })}
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+
+        <fieldset className="alert-prefs">
           <legend className="section-title">Avisos del marcador</legend>
           <label className="backup-mode" htmlFor={soundId}>
             <input
@@ -763,6 +983,11 @@ export function CounterPage() {
           aria-label="Contador a pantalla completa"
         >
           <p className="counter-fs__project">{active.name}</p>
+          {formatRowSide(active.rows, active.sideMode) ? (
+            <p className="counter-fs__side">
+              {formatRowSide(active.rows, active.sideMode)}
+            </p>
+          ) : null}
           {active.photoDataUrl ? (
             <img
               className="counter-fs__photo"
@@ -780,6 +1005,36 @@ export function CounterPage() {
                   ? `Fila ${thisStep.row}${thisStep.done ? ' hecha' : ''}: ${thisStep.instruction}`
                   : `Siguiente — fila ${nextStep?.row}: ${nextStep?.instruction}`}
               </p>
+            )
+          })()}
+          {(() => {
+            const thisStep = patternStepForRow(active)
+            if (!thisStep || stepRepeatTimes(thisStep) <= 0) return null
+            return (
+              <div className="counter-fs__repeat">
+                <p>{formatStepRepeat(thisStep)}</p>
+                <div className="counter-fs__actions">
+                  <button
+                    type="button"
+                    className="counter-fs__btn counter-fs__btn--primary"
+                    disabled={
+                      locked ||
+                      stepRepeatDone(thisStep) >= stepRepeatTimes(thisStep)
+                    }
+                    onClick={() => bumpStepRepeat(thisStep.id, 1)}
+                  >
+                    +1 repetición
+                  </button>
+                  <button
+                    type="button"
+                    className="counter-fs__btn"
+                    disabled={locked || stepRepeatDone(thisStep) === 0}
+                    onClick={() => bumpStepRepeat(thisStep.id, -1)}
+                  >
+                    −1
+                  </button>
+                </div>
+              </div>
             )
           })()}
           {active.leaveNote.trim() ? (
@@ -865,6 +1120,72 @@ export function CounterPage() {
               </div>
             </div>
           </div>
+          {pieceOn && (
+            <div className="counter-fs__grid counter-fs__grid--piece">
+              <div>
+                <div className="counter-fs__label">
+                  Vueltas · {active.pieceLabel}
+                </div>
+                <div
+                  className={`counter-fs__value counter-fs__value--sm${bump ? ' animate-bump' : ''}`}
+                  aria-live="polite"
+                >
+                  {active.pieceRows}
+                </div>
+                <div className="counter-fs__actions">
+                  <button
+                    type="button"
+                    className="counter-fs__btn counter-fs__btn--primary"
+                    aria-label={`Sumar vueltas de ${active.pieceLabel}`}
+                    disabled={locked}
+                    {...pieceRowHold}
+                  >
+                    +1 vuelta
+                  </button>
+                  <button
+                    type="button"
+                    className="counter-fs__btn"
+                    aria-label={`Restar vueltas de ${active.pieceLabel}`}
+                    disabled={locked || active.pieceRows === 0}
+                    {...pieceRowHoldDown}
+                  >
+                    −1
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="counter-fs__label">
+                  Punto · {active.pieceLabel}
+                </div>
+                <div
+                  className={`counter-fs__value counter-fs__value--sm${bump ? ' animate-bump' : ''}`}
+                  aria-live="polite"
+                >
+                  {active.pieceStitches}
+                </div>
+                <div className="counter-fs__actions">
+                  <button
+                    type="button"
+                    className="counter-fs__btn counter-fs__btn--primary"
+                    aria-label={`Sumar puntos de ${active.pieceLabel}`}
+                    disabled={locked}
+                    {...pieceStitchHold}
+                  >
+                    +1 punto
+                  </button>
+                  <button
+                    type="button"
+                    className="counter-fs__btn"
+                    aria-label={`Restar puntos de ${active.pieceLabel}`}
+                    disabled={locked || active.pieceStitches === 0}
+                    {...pieceStitchHoldDown}
+                  >
+                    −1
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             className="counter-fs__close"

@@ -16,12 +16,13 @@ describe('pantallas', () => {
   })
 
   it('pattern shows the row instructions page', () => {
-    const { getByRole } = renderPage(<PatternPage />)
+    const { getByRole, getByLabelText } = renderPage(<PatternPage />)
     expect(getByRole('heading', { name: 'Patrón por filas' })).toBeTruthy()
     expect(getByRole('button', { name: 'Añadir al patrón' })).toBeTruthy()
     expect(getByRole('button', { name: 'Compartir patrón' })).toBeTruthy()
     expect(getByRole('button', { name: 'Imprimir' })).toBeTruthy()
     expect(getByRole('heading', { name: 'Muestra / tensión' })).toBeTruthy()
+    expect(getByLabelText(/Repeticiones en esta fila/)).toBeTruthy()
   })
 
   it('projects lets you search, filter and create', () => {
@@ -37,11 +38,15 @@ describe('pantallas', () => {
   })
 
   it('counter shows the row count, leave note and lock', () => {
-    const { getByRole, getByLabelText } = renderPage(<CounterPage />)
+    const { getByRole, getByLabelText, getByText } = renderPage(<CounterPage />)
     expect(getByRole('heading', { name: 'Contador' })).toBeTruthy()
     expect(getByRole('button', { name: /Sumar vueltas/ })).toBeTruthy()
     expect(getByLabelText('Dónde lo dejé')).toBeTruthy()
     expect(getByRole('button', { name: 'Bloquear toques' })).toBeTruthy()
+    expect(
+      getByRole('button', { name: /Añadir segunda pieza/ }),
+    ).toBeTruthy()
+    expect(getByText(/Plano \(impar derecho/)).toBeTruthy()
   })
 
   it('analyze warns that local estimates are weak and offers typing by hand', () => {
