@@ -5,6 +5,7 @@ import {
   buildPatternShare,
   collectPhotos,
   applyRowAdvanceToPattern,
+  bumpPatternRepeat,
   clipLeaveNote,
   createProject,
   currentPatternStep,
@@ -12,6 +13,8 @@ import {
   formatClock,
   formatDuration,
   formatGauge,
+  formatRowSide,
+  formatStepRepeat,
   groupSessionsByDay,
   movePatternStep,
   nextCopyName,
@@ -217,6 +220,56 @@ describe('clipLeaveNote', () => {
   it('caps the parked note length', () => {
     expect(clipLeaveNote('  hola  ')).toBe('  hola  ')
     expect(clipLeaveNote('x'.repeat(400)).length).toBe(280)
+  })
+})
+
+describe('formatRowSide', () => {
+  it('uses odd rows as right side when knitting flat', () => {
+    expect(formatRowSide(0, 'flat')).toBeNull()
+    expect(formatRowSide(1, 'flat')).toMatch(/derecho/)
+    expect(formatRowSide(2, 'flat')).toMatch(/revés/)
+    expect(formatRowSide(3, 'round')).toMatch(/Circular/)
+    expect(formatRowSide(4, 'off')).toBeNull()
+  })
+})
+
+describe('bumpPatternRepeat', () => {
+  it('counts repeats up to the step limit', () => {
+    const steps: PatternStep[] = [
+      {
+        id: 'r',
+        row: 12,
+        instruction: '2 juntos, lazada',
+        done: false,
+        repeatTimes: 8,
+        repeatDone: 2,
+      },
+    ]
+    const up = bumpPatternRepeat(steps, 'r', 1)
+    expect(formatStepRepeat(up[0])).toBe('Van 3 de 8')
+    const maxed = bumpPatternRepeat(steps, 'r', 20)
+    expect(maxed[0].repeatDone).toBe(8)
+    const down = bumpPatternRepeat(steps, 'r', -5)
+    expect(down[0].repeatDone).toBe(0)
+  })
+})
+
+describe('piece counter undo', () => {
+  it('restores the second piece with the main counters', () => {
+    let project = createProject('Jersey')
+    project.pieceLabel = 'Manga'
+    project.pieceRows = 4
+    project.pieceStitches = 2
+    project = pushHistory(project, 0, 0)
+    project = {
+      ...project,
+      pieceRows: 5,
+      pieceStitches: 0,
+    }
+    project = pushHistory(project, 0, 0)
+    const undone = undoLastChange(project)
+    expect(undone.pieceRows).toBe(4)
+    expect(undone.pieceStitches).toBe(2)
   })
 })
 

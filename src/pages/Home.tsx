@@ -9,6 +9,7 @@ import {
   formatDuration,
   formatRelativeDate,
   goalProgress,
+  hasPiece,
   sessionMsToday,
   totalSessionMs,
 } from '../lib/projects'
@@ -47,6 +48,9 @@ export function HomePage() {
               Retoma <strong>{active.name}</strong>: ibas por la vuelta{' '}
               <strong>{active.rows}</strong>
               {active.stitches > 0 ? ` · punto ${active.stitches}` : ''}.
+              {hasPiece(active)
+                ? ` ${active.pieceLabel}: vuelta ${active.pieceRows}.`
+                : ''}
               {active.lastOpenedAt
                 ? ` Última vez: ${formatRelativeDate(active.lastOpenedAt)}.`
                 : ''}
