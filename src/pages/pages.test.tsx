@@ -109,6 +109,24 @@ describe('pantallas', () => {
     expect(getByText(/Copiada la fila 12/)).toBeTruthy()
   })
 
+  it('shows needle equivalents and lets you mark a pattern row', () => {
+    const { getByLabelText, getByRole, getAllByRole, getAllByText } =
+      renderPage(<PatternPage />)
+    fireEvent.change(getByLabelText('Agujas'), { target: { value: '4,5 mm' } })
+    expect(getAllByText('≈ US 7').length).toBeGreaterThan(0)
+    fireEvent.change(getByLabelText('Fila'), { target: { value: '40' } })
+    fireEvent.change(getByLabelText('Instrucción'), {
+      target: { value: 'cierre de cuello' },
+    })
+    fireEvent.click(getByRole('button', { name: 'Añadir al patrón' }))
+    const markButtons = getAllByRole('button', { name: 'Marcar esta fila' })
+    fireEvent.click(markButtons[markButtons.length - 1])
+    expect(getAllByText('Marcador: cierre de cuello').length).toBeGreaterThan(0)
+    expect(
+      getAllByRole('button', { name: 'Quitar marcador' }).length,
+    ).toBeGreaterThan(0)
+  })
+
   it('projects lets you search, filter and create', () => {
     const { getByLabelText, getByRole } = renderPage(<ProjectsPage />)
     expect(getByRole('heading', { name: 'Proyectos' })).toBeTruthy()

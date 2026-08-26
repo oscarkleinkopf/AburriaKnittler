@@ -4,6 +4,7 @@ import {
   estimateYarnMeters,
   evenSpacing,
   formatMeters,
+  formatNeedleHint,
   planEvenShaping,
 } from './knitTools'
 
@@ -94,5 +95,15 @@ describe('estimateYarnMeters', () => {
   it('returns null without a complete swatch', () => {
     expect(estimateYarnMeters(0, 10, 45, 60)).toBeNull()
     expect(estimateYarnMeters(8, 10, 45, 0)).toBeNull()
+  })
+})
+
+describe('formatNeedleHint', () => {
+  it('converts millimetres to US and the other way', () => {
+    expect(formatNeedleHint('4,5 mm')).toBe('≈ US 7')
+    expect(formatNeedleHint('US 7')).toBe('≈ 4,5 mm')
+    expect(formatNeedleHint('aguja 3,5 mm circular')).toBe('≈ US 4')
+    expect(formatNeedleHint('')).toBeNull()
+    expect(formatNeedleHint('Merina')).toBeNull()
   })
 })

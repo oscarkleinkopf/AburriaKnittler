@@ -26,6 +26,7 @@ import {
   parseBackupJson,
   pushHistory,
   removeProjectPhoto,
+  upsertNamedMarker,
   applyRowAdvanceToPattern,
   repeatPatternRange as expandPatternRange,
   movePatternStep as shiftPatternStep,
@@ -37,7 +38,6 @@ import {
   updatePatternStep,
   type ImportMode,
   type ImportResult,
-  type NamedMarker,
   type PatternStep,
   type Project,
   type ProjectsState,
@@ -291,15 +291,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const addNamedMarker = useCallback((row: number, label: string) => {
     const text = label.trim()
     if (!text) return
-    const marker: NamedMarker = {
-      id: createId(),
-      row: Math.max(0, Math.round(row)),
-      label: text,
-    }
-    patchActive((p) => ({
-      ...p,
-      namedMarkers: [...p.namedMarkers, marker].slice(0, 40),
-    }))
+    patchActive((p) => upsertNamedMarker(p, row, text))
   }, [])
 
   const removeNamedMarker = useCallback((id: string) => {

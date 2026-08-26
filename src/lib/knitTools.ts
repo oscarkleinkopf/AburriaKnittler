@@ -199,3 +199,83 @@ export function formatMeters(n: number): string {
     : String(rounded).replace('.', ',')
   return `${text} m`
 }
+
+/** US → mm (tabla Craft Yarn Council). */
+const US_TO_MM: Array<[number, number]> = [
+  [0, 2],
+  [1, 2.25],
+  [2, 2.75],
+  [3, 3.25],
+  [4, 3.5],
+  [5, 3.75],
+  [6, 4],
+  [7, 4.5],
+  [8, 5],
+  [9, 5.5],
+  [10, 6],
+  [10.5, 6.5],
+  [11, 8],
+  [13, 9],
+  [15, 10],
+  [17, 12.75],
+  [19, 15],
+  [35, 19],
+  [50, 25],
+]
+
+function formatMmNumber(n: number): string {
+  const rounded = Math.round(n * 100) / 100
+  if (Number.isInteger(rounded)) return String(rounded)
+  return String(rounded).replace('.', ',')
+}
+
+function formatUsNumber(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(n).replace('.', ',')
+}
+
+function closestUs(mm: number): number {
+  let best = US_TO_MM[0][0]
+  let dist = Infinity
+  for (const [us, size] of US_TO_MM) {
+    const d = Math.abs(size - mm)
+    if (d < dist) {
+      dist = d
+      best = us
+    }
+  }
+  return best
+}
+
+function mmForUs(us: number): number | null {
+  if (!Number.isFinite(us) || us < 0) return null
+  let best = US_TO_MM[0]
+  let dist = Infinity
+  for (const row of US_TO_MM) {
+    const d = Math.abs(row[0] - us)
+    if (d < dist) {
+      dist = d
+      best = row
+    }
+  }
+  return best[1]
+}
+
+/** Si el texto trae mm o US, devuelve la equivalencia. */
+export function formatNeedleHint(text: string): string | null {
+  const lower = text.trim().toLowerCase()
+  if (!lower) return null
+  const usMatch = lower.match(/(?:us|usa|#)\s*(\d+(?:[.,]\d+)?)/)
+  const mmMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*mm/)
+  if (usMatch && !mmMatch) {
+    const us = Number.parseFloat(usMatch[1].replace(',', '.'))
+    const mm = mmForUs(us)
+    if (mm == null) return null
+    return `≈ ${formatMmNumber(mm)} mm`
+  }
+  if (mmMatch) {
+    const mm = Number.parseFloat(mmMatch[1].replace(',', '.'))
+    if (!Number.isFinite(mm) || mm < 1.5 || mm > 25) return null
+    return `≈ US ${formatUsNumber(closestUs(mm))}`
+  }
+  return null
+}

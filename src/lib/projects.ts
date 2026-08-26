@@ -358,12 +358,12 @@ function normalizeProject(p: Project): Project {
   }
 }
 
-export function totalSessionMs(project: Project): number {
+export function totalSessionMs(project: Project, now = Date.now()): number {
   const closed = project.sessions.reduce((sum, s) => sum + s.durationMs, 0)
   if (!project.timerStartedAt) return closed
   const started = Date.parse(project.timerStartedAt)
   if (!Number.isFinite(started)) return closed
-  return closed + Math.max(0, Date.now() - started)
+  return closed + Math.max(0, now - started)
 }
 
 export function sessionMsToday(project: Project, now = new Date()): number {
@@ -739,6 +739,73 @@ export function namedMarkerAt(
   row: number,
 ): NamedMarker | undefined {
   return project.namedMarkers.find((m) => m.row === row)
+}
+
+export function upsertNamedMarker(
+  project: Project,
+  row: number,
+  label: string,
+): Project {
+  const text =
+    String(label ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 40) || 'Marcador'
+  const n = Math.max(0, Math.round(row))
+  const existing = project.namedMarkers.find((m) => m.row === n)
+  if (existing) {
+    return {
+      ...project,
+      namedMarkers: project.namedMarkers.map((m) =>
+        m.id === existing.id ? { ...m, label: text } : m,
+      ),
+    }
+  }
+  if (project.namedMarkers.length >= MAX_NAMED_MARKERS) return project
+  return {
+    ...project,
+    namedMarkers: [
+      ...project.namedMarkers,
+      { id: createId(), row: n, label: text },
+    ],
+  }
+}
+
+/** Filas hasta la meta o hasta el último paso del patrón. */
+export function workTargetRows(project: Project): number {
+  const lastStep = project.patternSteps.reduce(
+    (max, s) => Math.max(max, s.row),
+    0,
+  )
+  return Math.max(project.targetRows, lastStep)
+}
+
+export const MIN_PACE_ROWS = 3
+export const MIN_PACE_MS = 5 * 60 * 1000
+
+export type RemainingEstimate = {
+  remainingRows: number
+  remainingMs: number
+  rowsPerHour: number
+}
+
+export function estimateRemainingWork(
+  project: Project,
+  now = Date.now(),
+): RemainingEstimate | null {
+  const target = workTargetRows(project)
+  if (target <= 0) return null
+  const remainingRows = Math.max(0, target - project.rows)
+  if (remainingRows === 0) return null
+  const ms = totalSessionMs(project, now)
+  if (project.rows < MIN_PACE_ROWS || ms < MIN_PACE_MS) return null
+  const remainingMs = (remainingRows / project.rows) * ms
+  const rowsPerHour = (project.rows / ms) * 3_600_000
+  return {
+    remainingRows,
+    remainingMs,
+    rowsPerHour,
+  }
 }
 
 export type GoalProgress = {

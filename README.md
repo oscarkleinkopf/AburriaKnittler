@@ -76,8 +76,8 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 1. **Proyectos** — varios tejidos; buscar; filtros (en curso, con patrón, con foto, con meta); archivar; duplicar (otra talla) conserva patrón y fotos (hasta 4); elegir cuál foto es la portada
 2. **Respaldo** — exportar / importar JSON; aviso si hace tiempo o el aparato va lleno; importar un patrón suelto crea un proyecto nuevo
-3. **Patrón por filas** — instrucciones por fila; buscar en el patrón; duplicar un paso; pegar o exportar texto; repetir un tramo; reordenar (Subir/Bajar); repeticiones dentro de la fila; resalta la vuelta actual; muestra/tensión; calculadora (montar puntos o filas; metros de lana; aumentos o disminuciones con M1, lazada, kfb, 2 juntos o SSK); leer en voz alta; imprimir; compartir solo el patrón (sin fotos ni contador)
-4. **Sesiones** — temporizador; si lleva horas, pregunta si sigue; historial por día
+3. **Patrón por filas** — instrucciones por fila; buscar en el patrón; duplicar un paso; marcar una fila (aviso en el contador); pegar o exportar texto; repetir un tramo; reordenar (Subir/Bajar); repeticiones dentro de la fila; resalta la vuelta actual; muestra/tensión; equivalencia de agujas (mm ↔ US); calculadora (montar puntos o filas; metros de lana; aumentos o disminuciones con M1, lazada, kfb, 2 juntos o SSK); leer en voz alta; imprimir; compartir solo el patrón (sin fotos ni contador)
+4. **Sesiones** — temporizador; si lleva horas, pregunta si sigue; historial por día; estima el tiempo que queda según tu ritmo (meta o último paso del patrón)
 5. **Retomar** — al abrir, si ayer estabas tejiendo, entra en el contador; recuerda la vuelta, la meta, el recado de «dónde lo dejé» y el siguiente paso
 6. **Alto contraste** — botón Aa → Contraste
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
