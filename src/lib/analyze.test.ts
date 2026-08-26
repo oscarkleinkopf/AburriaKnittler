@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  analyzeApiPath,
+  analyzeViaServer,
   hasGeminiKey,
+  hasServerVision,
+  hasVision,
   isLocalAnalysis,
   loadGeminiKey,
   LOCAL_ANALYSIS_NOTICE,
@@ -10,6 +14,7 @@ import {
   bundledGeminiKey,
   type AnalyzeResult,
 } from './analyze'
+import { extractJson, normalizeAnalyzeResult } from './analyzeShared'
 
 const local: AnalyzeResult = {
   estimatedStitches: 80,
@@ -68,5 +73,82 @@ describe('personal Gemini key', () => {
     saveGeminiKey('')
     expect(loadGeminiKey()).toBe('')
     expect(resolveGeminiKey()).toBe(bundledGeminiKey())
+  })
+})
+
+describe('server vision API', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('is off in unit tests (GitHub Pages / Vitest have no function URL)', () => {
+    expect(analyzeApiPath()).toBe('')
+    expect(hasServerVision()).toBe(false)
+    mockStorage()
+    saveGeminiKey('')
+    expect(hasVision()).toBe(Boolean(bundledGeminiKey()))
+  })
+
+  it('posts the photo to the analyze API and normalizes the JSON', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        estimatedStitches: 80,
+        estimatedRows: 40,
+        stitchType: 'jersey',
+        patternStructure: 'plano',
+        confidence: 'media',
+        notes: 'ok',
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File(['hello'], 'knit.jpg', { type: 'image/jpeg' })
+    const result = await analyzeViaServer(file, '/api/analizar')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/analizar')
+    expect(init.method).toBe('POST')
+    const sent = JSON.parse(String(init.body)) as { mimeType: string; data: string }
+    expect(sent.mimeType).toBe('image/jpeg')
+    expect(sent.data.length).toBeGreaterThan(0)
+    expect(result).toEqual({
+      estimatedStitches: 80,
+      estimatedRows: 40,
+      stitchType: 'jersey',
+      patternStructure: 'plano',
+      confidence: 'media',
+      notes: 'ok',
+    })
+  })
+
+  it('surfaces the server error message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({
+          error: 'La IA del servidor aún no está lista.',
+        }),
+      }),
+    )
+    const file = new File(['hello'], 'knit.jpg', { type: 'image/jpeg' })
+    await expect(analyzeViaServer(file, '/api/analizar')).rejects.toThrow(
+      /aún no está lista/i,
+    )
+  })
+})
+
+describe('analyze JSON helpers', () => {
+  it('extracts JSON even when wrapped in extra text', () => {
+    const parsed = extractJson(
+      'nota\n{"estimatedStitches": 12, "stitchType": "musgo"}\n',
+    ) as Record<string, unknown>
+    expect(normalizeAnalyzeResult(parsed)).toMatchObject({
+      estimatedStitches: 12,
+      stitchType: 'musgo',
+      estimatedRows: null,
+      confidence: 'baja',
+    })
   })
 })

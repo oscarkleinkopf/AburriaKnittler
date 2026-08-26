@@ -6,6 +6,7 @@ import { ImagePrepPanel } from '../components/ImagePrepPanel'
 import {
   analyzeGarmentPhoto,
   bundledGeminiKey,
+  hasServerVision,
   isLocalAnalysis,
   loadGeminiKey,
   LOCAL_ANALYSIS_NOTICE,
@@ -74,8 +75,9 @@ export function AnalyzePage() {
   } = useProjects()
   const online = useOnline()
   const bundled = bundledGeminiKey()
+  const serverVision = hasServerVision()
   const [personalKey, setPersonalKey] = useState(() => loadGeminiKey())
-  const gemini = Boolean(personalKey || bundled)
+  const gemini = serverVision || Boolean(personalKey || bundled)
   const inputId = useId()
   const keyId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -358,6 +360,58 @@ export function AnalyzePage() {
   const needsNetwork = gemini
   const showResults = (result && status === 'done') || editing
 
+  const geminiKeyForm = (
+    <form className="stack" onSubmit={onSaveKey}>
+      <h2 className="section-title">Clave de Gemini</h2>
+      <p className="muted">
+        Para que la foto vea el tejido. Se queda en este aparato, no va en el
+        respaldo del proyecto.{' '}
+        <a
+          href="https://aistudio.google.com/apikey"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Pedir clave en Google AI Studio
+        </a>
+        .
+      </p>
+      {personalKey ? (
+        <p className="calc-result">Guardada {maskGeminiKey(personalKey)}</p>
+      ) : bundled ? (
+        <p className="muted">
+          Este sitio trae una clave de build. Mejor usa una tuya: la de build
+          queda en el JavaScript público.
+        </p>
+      ) : null}
+      <div className="field">
+        <label htmlFor={keyId}>Clave de Gemini</label>
+        <input
+          id={keyId}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          value={keyDraft}
+          onChange={(e) => setKeyDraft(e.target.value)}
+          placeholder="AIza…"
+        />
+      </div>
+      <div className="row-actions">
+        <BigButton
+          type="submit"
+          variant="secondary"
+          disabled={!keyDraft.trim()}
+        >
+          Guardar clave
+        </BigButton>
+        {personalKey ? (
+          <BigButton type="button" variant="ghost" onClick={onClearKey}>
+            Quitar clave
+          </BigButton>
+        ) : null}
+      </div>
+    </form>
+  )
+
   return (
     <section className="stack animate-enter" aria-labelledby="analyze-title">
       <div>
@@ -393,55 +447,20 @@ export function AnalyzePage() {
         </Banner>
       )}
 
-      <form className="stack" onSubmit={onSaveKey}>
-        <h2 className="section-title">Clave de Gemini</h2>
+      {serverVision ? (
         <p className="muted">
-          Para que la foto vea el tejido. Se queda en este aparato, no va en el
-          respaldo del proyecto.{' '}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Pedir clave en Google AI Studio
-          </a>
-          .
+          La IA corre en el servidor. No hace falta pegar una clave de Gemini.
         </p>
-        {personalKey ? (
-          <p className="calc-result">Guardada {maskGeminiKey(personalKey)}</p>
-        ) : bundled ? (
-          <p className="muted">
-            Este sitio trae una clave de build. Mejor usa una tuya: la de build
-            queda en el JavaScript público.
-          </p>
-        ) : null}
-        <div className="field">
-          <label htmlFor={keyId}>Clave de Gemini</label>
-          <input
-            id={keyId}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-            placeholder="AIza…"
-          />
-        </div>
-        <div className="row-actions">
-          <BigButton
-            type="submit"
-            variant="secondary"
-            disabled={!keyDraft.trim()}
-          >
-            Guardar clave
-          </BigButton>
-          {personalKey ? (
-            <BigButton type="button" variant="ghost" onClick={onClearKey}>
-              Quitar clave
-            </BigButton>
-          ) : null}
-        </div>
-      </form>
+      ) : null}
+
+      {serverVision ? (
+        <details className="stack">
+          <summary>Usar mi propia clave (opcional)</summary>
+          {geminiKeyForm}
+        </details>
+      ) : (
+        geminiKeyForm
+      )}
 
       {!online && needsNetwork && (
         <Banner tone="warn" role="alert">
