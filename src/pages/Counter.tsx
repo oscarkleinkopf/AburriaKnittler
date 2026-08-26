@@ -12,6 +12,7 @@ import {
   clipPieceLabel,
   currentPatternStep,
   DEFAULT_PIECE_LABEL,
+  estimateRemainingWork,
   formatClock,
   formatDuration,
   formatGauge,
@@ -517,6 +518,16 @@ export function CounterPage() {
             Hoy {formatDuration(sessionMsToday(active))} · total{' '}
             {formatDuration(totalSessionMs(active))}
           </p>
+          {(() => {
+            const eta = estimateRemainingWork(active)
+            if (!eta) return null
+            return (
+              <p className="calc-result">
+                Al ritmo actual, unas {formatDuration(eta.remainingMs)} (faltan{' '}
+                {eta.remainingRows} vueltas).
+              </p>
+            )
+          })()}
           <div className="row-actions">
             {!active.timerStartedAt ? (
               <BigButton

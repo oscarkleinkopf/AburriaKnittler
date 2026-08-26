@@ -12,6 +12,7 @@ import {
   currentPatternStep,
   duplicateProject,
   duplicatePatternStep,
+  estimateRemainingWork,
   formatClock,
   formatDuration,
   formatGauge,
@@ -37,6 +38,7 @@ import {
   structureToPatternSteps,
   undoLastChange,
   updatePatternStep,
+  upsertNamedMarker,
   archiveProjectInState,
   consumeFirstLandingThisSession,
   goalProgress,
@@ -606,6 +608,41 @@ describe('goalProgress', () => {
   })
 })
 
+describe('estimateRemainingWork', () => {
+  it('uses session time and remaining rows to the goal', () => {
+    const project = createProject('Bufanda')
+    project.rows = 20
+    project.targetRows = 80
+    project.sessions = [
+      {
+        id: 's',
+        startedAt: '2026-08-01T10:00:00.000Z',
+        endedAt: '2026-08-01T11:00:00.000Z',
+        durationMs: 60 * 60 * 1000,
+      },
+    ]
+    const eta = estimateRemainingWork(project)
+    expect(eta?.remainingRows).toBe(60)
+    expect(eta?.remainingMs).toBe(3 * 60 * 60 * 1000)
+    expect(eta?.rowsPerHour).toBe(20)
+  })
+
+  it('needs a few rows and minutes before guessing', () => {
+    const project = createProject('Chal')
+    project.rows = 2
+    project.targetRows = 80
+    project.sessions = [
+      {
+        id: 's',
+        startedAt: '2026-08-01T10:00:00.000Z',
+        endedAt: '2026-08-01T10:02:00.000Z',
+        durationMs: 2 * 60 * 1000,
+      },
+    ]
+    expect(estimateRemainingWork(project)).toBeNull()
+  })
+})
+
 describe('namedMarkerAt and long session', () => {
   it('finds a named marker on a row', () => {
     const project = createProject('Jersey')
@@ -614,6 +651,14 @@ describe('namedMarkerAt and long session', () => {
     ]
     expect(namedMarkerAt(project, 30)?.label).toBe('Sisa')
     expect(namedMarkerAt(project, 29)).toBeUndefined()
+  })
+
+  it('upserts a named marker on the same row', () => {
+    let project = createProject('Jersey')
+    project = upsertNamedMarker(project, 30, 'Sisa')
+    project = upsertNamedMarker(project, 30, 'Cerrar sisa')
+    expect(project.namedMarkers).toHaveLength(1)
+    expect(project.namedMarkers[0].label).toBe('Cerrar sisa')
   })
 
   it('detects a timer running longer than three hours', () => {

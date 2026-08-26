@@ -1023,6 +1023,12 @@
   color: var(--color-brand-deep);
 }
 
+.pattern-item__marker {
+  margin: 0;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
 .session-history {
   display: grid;
   gap: var(--space-3);

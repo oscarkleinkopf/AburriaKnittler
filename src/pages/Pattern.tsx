@@ -16,6 +16,7 @@ import {
   patternStepToSpeech,
   patternStepsToText,
   nextPendingPatternStep,
+  namedMarkerAt,
   patternStepMatchesQuery,
   sharePattern,
   sortedPatternSteps,
@@ -28,6 +29,7 @@ import {
   DECREASE_STITCHES,
   estimateYarnMeters,
   formatMeters,
+  formatNeedleHint,
   INCREASE_STITCHES,
   planEvenShaping,
   type DecreaseStitch,
@@ -46,6 +48,8 @@ export function PatternPage() {
     removePatternStep,
     duplicatePatternStep,
     movePatternStep,
+    addNamedMarker,
+    removeNamedMarker,
     updateProject,
     markOpened,
   } = useProjects()
@@ -461,6 +465,10 @@ export function PatternPage() {
             }
             placeholder="4,5 mm"
           />
+          {(() => {
+            const hint = formatNeedleHint(active.needles)
+            return hint ? <p className="calc-result">{hint}</p> : null
+          })()}
         </div>
         <div className="field">
           <label htmlFor={gaugeCmId}>Muestra en cm</label>
@@ -961,6 +969,11 @@ export function PatternPage() {
                           {formatStepRepeat(step)}
                         </p>
                       ) : null}
+                      {namedMarkerAt(active, step.row) ? (
+                        <p className="pattern-item__marker">
+                          Marcador: {namedMarkerAt(active, step.row)?.label}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="row-actions">
                       <BigButton
@@ -999,6 +1012,37 @@ export function PatternPage() {
                       >
                         Editar
                       </BigButton>
+                      {namedMarkerAt(active, step.row) ? (
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            const marker = namedMarkerAt(active, step.row)
+                            if (marker) {
+                              removeNamedMarker(marker.id)
+                              setMessage('Marcador quitado.')
+                            }
+                          }}
+                        >
+                          Quitar marcador
+                        </BigButton>
+                      ) : (
+                        <BigButton
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            const label =
+                              step.instruction.trim().slice(0, 40) ||
+                              `Fila ${step.row}`
+                            addNamedMarker(step.row, label)
+                            setMessage(
+                              `Marcador en la fila ${step.row}: ${label}`,
+                            )
+                          }}
+                        >
+                          Marcar esta fila
+                        </BigButton>
+                      )}
                       <BigButton
                         type="button"
                         variant="ghost"

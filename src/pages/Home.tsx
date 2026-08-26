@@ -6,6 +6,7 @@ import { LongSessionBanner } from '../components/LongSessionBanner'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   currentPatternStep,
+  estimateRemainingWork,
   formatDuration,
   formatRelativeDate,
   goalProgress,
@@ -62,9 +63,12 @@ export function HomePage() {
                 : ''}
               {(() => {
                 const goal = goalProgress(active)
-                return goal
-                  ? ` Meta ${goal.current} de ${goal.target}.`
-                  : ''
+                const eta = estimateRemainingWork(active)
+                return `${goal ? ` Meta ${goal.current} de ${goal.target}.` : ''}${
+                  eta
+                    ? ` Quedan ${formatDuration(eta.remainingMs)}.`
+                    : ''
+                }`
               })()}{' '}
               Hoy {formatDuration(sessionMsToday(active))} · total{' '}
               {formatDuration(totalSessionMs(active))}.
