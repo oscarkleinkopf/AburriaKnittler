@@ -16,13 +16,23 @@ import {
   patternStepToSpeech,
   patternStepsToText,
   nextPendingPatternStep,
+  patternStepMatchesQuery,
   sharePattern,
   sortedPatternSteps,
   stepRepeatDone,
   stepRepeatTimes,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
-import { countFromGauge, planEvenShaping } from '../lib/knitTools'
+import {
+  countFromGauge,
+  DECREASE_STITCHES,
+  estimateYarnMeters,
+  formatMeters,
+  INCREASE_STITCHES,
+  planEvenShaping,
+  type DecreaseStitch,
+  type IncreaseStitch,
+} from '../lib/knitTools'
 
 export function PatternPage() {
   const {
@@ -34,6 +44,7 @@ export function PatternPage() {
     bumpStepRepeat,
     updatePatternStep,
     removePatternStep,
+    duplicatePatternStep,
     movePatternStep,
     updateProject,
     markOpened,
@@ -45,6 +56,7 @@ export function PatternPage() {
   const [inRowRepeats, setInRowRepeats] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [hideDone, setHideDone] = useState(false)
+  const [stepQuery, setStepQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [paste, setPaste] = useState('')
   const [speaking, setSpeaking] = useState(false)
@@ -66,10 +78,13 @@ export function PatternPage() {
   const gaugeCmId = useId()
   const gaugeStitchesId = useId()
   const gaugeRowsId = useId()
+  const gaugeMetersId = useId()
   const widthCmId = useId()
   const lengthCmId = useId()
   const shapeFromId = useId()
   const shapeChangeId = useId()
+  const shapeStitchId = useId()
+  const stepSearchId = useId()
   const [widthCm, setWidthCm] = useState('')
   const [lengthCm, setLengthCm] = useState('')
   const [shapeFrom, setShapeFrom] = useState('')
@@ -77,6 +92,8 @@ export function PatternPage() {
   const [shapeKind, setShapeKind] = useState<'increase' | 'decrease'>(
     'decrease',
   )
+  const [incStitch, setIncStitch] = useState<IncreaseStitch>('m1')
+  const [decStitch, setDecStitch] = useState<DecreaseStitch>('k2tog')
 
   useEffect(() => {
     markOpened()
@@ -94,8 +111,9 @@ export function PatternPage() {
     if (!active) return []
     return [...active.patternSteps]
       .filter((s) => !hideDone || !s.done)
+      .filter((s) => patternStepMatchesQuery(s, stepQuery))
       .sort((a, b) => a.row - b.row || Number(a.done) - Number(b.done))
-  }, [active, hideDone])
+  }, [active, hideDone, stepQuery])
 
   const nextStep = active ? currentPatternStep(active) : null
   const thisStep = active ? patternStepForRow(active) : null
@@ -113,7 +131,7 @@ export function PatternPage() {
   useEffect(() => {
     if (!highlightId) return
     const el = document.getElementById(`pattern-step-${highlightId}`)
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [highlightId, hideDone, active?.rows])
 
   function onAdd(e: FormEvent) {
@@ -494,6 +512,24 @@ export function PatternPage() {
             placeholder="0 = no"
           />
         </div>
+        <div className="field">
+          <label htmlFor={gaugeMetersId}>Metros en esa muestra</label>
+          <input
+            id={gaugeMetersId}
+            type="number"
+            min={0}
+            step="0.1"
+            inputMode="decimal"
+            value={active.gaugeMeters || ''}
+            onChange={(e) => {
+              const n = Number.parseFloat(e.target.value.replace(',', '.'))
+              updateProject(active.id, {
+                gaugeMeters: Number.isFinite(n) ? n : 0,
+              })
+            }}
+            placeholder="0 = no"
+          />
+        </div>
       </div>
 
       <div className="stack no-print">
@@ -562,6 +598,30 @@ export function PatternPage() {
             </p>
           )
         })()}
+        {(() => {
+          const w = Number.parseFloat(widthCm.replace(',', '.'))
+          const l = Number.parseFloat(lengthCm.replace(',', '.'))
+          const meters = estimateYarnMeters(
+            active.gaugeMeters,
+            active.gaugeCm,
+            w,
+            l,
+          )
+          if (!widthCm.trim() || !lengthCm.trim()) return null
+          if (meters == null) {
+            return (
+              <p className="muted">
+                Si apuntas los metros de la muestra, estimo la lana.
+              </p>
+            )
+          }
+          return (
+            <p className="calc-result">
+              Unas <strong>{formatMeters(meters)}</strong> de lana para {w} × {l}{' '}
+              cm.
+            </p>
+          )
+        })()}
         <fieldset className="backup-modes">
           <legend className="sr-only">Aumentar o disminuir</legend>
           <label className="backup-mode">
@@ -583,6 +643,36 @@ export function PatternPage() {
             Aumentar
           </label>
         </fieldset>
+        <div className="field">
+          <label htmlFor={shapeStitchId}>
+            {shapeKind === 'increase' ? 'Cómo aumentar' : 'Cómo disminuir'}
+          </label>
+          <select
+            id={shapeStitchId}
+            value={shapeKind === 'increase' ? incStitch : decStitch}
+            onChange={(e) => {
+              const value = e.target.value
+              if (shapeKind === 'increase') {
+                if (value === 'm1' || value === 'yo' || value === 'kfb') {
+                  setIncStitch(value)
+                }
+                return
+              }
+              if (value === 'k2tog' || value === 'ssk') {
+                setDecStitch(value)
+              }
+            }}
+          >
+            {(shapeKind === 'increase'
+              ? INCREASE_STITCHES
+              : DECREASE_STITCHES
+            ).map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="field">
           <label htmlFor={shapeFromId}>Puntos ahora</label>
           <input
@@ -625,6 +715,7 @@ export function PatternPage() {
           const plan = planEvenShaping(
             from,
             shapeKind === 'increase' ? changeRaw : -changeRaw,
+            shapeKind === 'increase' ? incStitch : decStitch,
           )
           if ('error' in plan) {
             return <p className="muted">{plan.error}</p>
@@ -766,6 +857,18 @@ export function PatternPage() {
 
       <div className="stack no-print">
         <h2 className="section-title">Instrucciones</h2>
+        {active.patternSteps.length > 0 && (
+          <div className="field">
+            <label htmlFor={stepSearchId}>Buscar en el patrón</label>
+            <input
+              id={stepSearchId}
+              type="search"
+              value={stepQuery}
+              onChange={(e) => setStepQuery(e.target.value)}
+              placeholder="sisa, lazada, fila 12…"
+            />
+          </div>
+        )}
         {doneCount > 0 && (
           <label className="backup-mode">
             <input
@@ -778,7 +881,9 @@ export function PatternPage() {
         )}
         {sorted.length === 0 ? (
           <p className="muted">
-            {hideDone
+            {stepQuery.trim()
+              ? `Ningún paso coincide con «${stepQuery.trim()}».`
+              : hideDone
               ? 'No quedan pasos pendientes. Desmarca «Ocultar hechas» para verlos.'
               : 'Aún no hay pasos. Añade algo como «fila 12: 2 juntos, lazada» y márcalo cuando lo tejas.'}
           </p>
@@ -893,6 +998,21 @@ export function PatternPage() {
                         onClick={() => startEdit(step.id)}
                       >
                         Editar
+                      </BigButton>
+                      <BigButton
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          if (duplicatePatternStep(step.id)) {
+                            setMessage(`Copiada la fila ${step.row}.`)
+                          } else {
+                            setMessage(
+                              'No pude duplicar. ¿Llegaste al máximo de pasos?',
+                            )
+                          }
+                        }}
+                      >
+                        Duplicar
                       </BigButton>
                       <BigButton
                         type="button"

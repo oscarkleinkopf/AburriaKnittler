@@ -52,6 +52,8 @@ export type Project = {
   gaugeRows: number
   /** Centímetros de la muestra (por defecto 10) */
   gaugeCm: number
+  /** Metros de lana usados en esa muestra (0 = no) */
+  gaugeMeters: number
   createdAt: string
   updatedAt: string
   rows: number
@@ -124,6 +126,7 @@ export function createProject(name: string, notes = ''): Project {
     gaugeStitches: 0,
     gaugeRows: 0,
     gaugeCm: DEFAULT_GAUGE_CM,
+    gaugeMeters: 0,
     createdAt: now,
     updatedAt: now,
     rows: 0,
@@ -314,6 +317,10 @@ function normalizeProject(p: Project): Project {
     gaugeCm: Math.max(
       1,
       Math.round(Number(p.gaugeCm) || DEFAULT_GAUGE_CM) || DEFAULT_GAUGE_CM,
+    ),
+    gaugeMeters: Math.min(
+      500,
+      Math.max(0, Math.round((Number(p.gaugeMeters) || 0) * 10) / 10),
     ),
     createdAt: p.createdAt || new Date().toISOString(),
     updatedAt: p.updatedAt || new Date().toISOString(),
@@ -841,6 +848,7 @@ export type PatternShareFile = {
   gaugeStitches: number
   gaugeRows: number
   gaugeCm: number
+  gaugeMeters: number
   notes: string
   steps: Array<{ row: number; instruction: string }>
 }
@@ -857,6 +865,7 @@ export function buildPatternShare(project: Project): PatternShareFile {
     gaugeStitches: project.gaugeStitches,
     gaugeRows: project.gaugeRows,
     gaugeCm: project.gaugeCm,
+    gaugeMeters: project.gaugeMeters,
     notes: project.notes,
     steps: sortedPatternSteps(project.patternSteps).map((s) => ({
       row: s.row,
@@ -875,6 +884,7 @@ export function patternShareToText(share: PatternShareFile): string {
       gaugeStitches: share.gaugeStitches,
       gaugeRows: share.gaugeRows,
       gaugeCm: share.gaugeCm,
+      gaugeMeters: share.gaugeMeters,
     }),
     share.notes.trim() || null,
   ].filter(Boolean)
@@ -960,6 +970,7 @@ function patternShareToProject(raw: Record<string, unknown>): Project {
     gaugeStitches: Number(raw.gaugeStitches) || 0,
     gaugeRows: Number(raw.gaugeRows) || 0,
     gaugeCm: Number(raw.gaugeCm) || DEFAULT_GAUGE_CM,
+    gaugeMeters: Number(raw.gaugeMeters) || 0,
     patternSteps: steps,
   })
 }
@@ -1297,6 +1308,15 @@ export function projectMatchesQuery(project: Project, query: string): boolean {
   return foldSearch(haystack).includes(q)
 }
 
+export function patternStepMatchesQuery(
+  step: PatternStep,
+  query: string,
+): boolean {
+  const q = foldSearch(query.trim())
+  if (!q) return true
+  return foldSearch(`${step.row} ${step.instruction}`).includes(q)
+}
+
 export type ProjectFilter = 'all' | 'inProgress' | 'withPattern' | 'withPhoto' | 'withGoal'
 
 export const PROJECT_FILTERS: Array<{ id: ProjectFilter; label: string }> = [
@@ -1328,6 +1348,13 @@ export function formatGauge(project: Project): string | null {
     const rows = project.gaugeRows > 0 ? `${project.gaugeRows} filas` : null
     const counts = [stitches, rows].filter(Boolean).join(' × ')
     bits.push(`Muestra ${cm} cm: ${counts}`)
+  }
+  if (project.gaugeMeters > 0) {
+    const m = project.gaugeMeters
+    const label = Number.isInteger(m)
+      ? `${m} m`
+      : `${String(m).replace('.', ',')} m`
+    bits.push(`${label} en la muestra`)
   }
   if (project.needles.trim()) bits.push(`Aguja ${project.needles.trim()}`)
   if (project.yarn.trim()) bits.push(project.yarn.trim())
@@ -1365,6 +1392,26 @@ export function movePatternStep(
     if (s.id === other.id) return { ...s, row: current.row }
     return s
   })
+}
+
+/** Copia un paso a continuación, misma fila, sin marcar como hecha. */
+export function duplicatePatternStep(
+  steps: PatternStep[],
+  id: string,
+): PatternStep[] {
+  if (steps.length >= MAX_PATTERN_STEPS) return steps
+  const index = steps.findIndex((s) => s.id === id)
+  if (index < 0) return steps
+  const source = steps[index]
+  const copy: PatternStep = {
+    id: createId(),
+    row: source.row,
+    instruction: source.instruction,
+    done: false,
+    repeatTimes: source.repeatTimes,
+    repeatDone: 0,
+  }
+  return [...steps.slice(0, index + 1), copy, ...steps.slice(index + 1)]
 }
 
 function isoOnLocalDay(iso: string | null | undefined, keys: Set<string>): boolean {

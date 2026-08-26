@@ -25,6 +25,8 @@ describe('pantallas', () => {
     expect(getByRole('heading', { name: 'Calculadora' })).toBeTruthy()
     expect(getByLabelText('Ancho que quieres (cm)')).toBeTruthy()
     expect(getByLabelText('Puntos ahora')).toBeTruthy()
+    expect(getByLabelText('Cómo disminuir')).toBeTruthy()
+    expect(getByLabelText('Metros en esa muestra')).toBeTruthy()
     expect(getByLabelText(/Repeticiones en esta fila/)).toBeTruthy()
   })
 
@@ -54,6 +56,57 @@ describe('pantallas', () => {
     expect(
       getByRole('button', { name: 'Añadir cálculo al patrón' }),
     ).toBeTruthy()
+    fireEvent.change(getByLabelText('Metros en esa muestra'), {
+      target: { value: '8' },
+    })
+    fireEvent.change(getByLabelText('Largo que quieres (cm)'), {
+      target: { value: '60' },
+    })
+    expect(
+      getByText((_, node) =>
+        Boolean(
+          node?.classList.contains('calc-result') &&
+            node.textContent?.includes('Unas 216 m de lana'),
+        ),
+      ),
+    ).toBeTruthy()
+    fireEvent.change(getByLabelText('Cómo disminuir'), {
+      target: { value: 'ssk' },
+    })
+    expect(
+      getByText((_, node) =>
+        Boolean(
+          node?.classList.contains('calc-result') &&
+            node.textContent?.includes('2 juntos revés (SSK)'),
+        ),
+      ),
+    ).toBeTruthy()
+  })
+
+  it('lets you search and duplicate a pattern step', () => {
+    const { getByLabelText, getByRole, getByText, queryByRole } = renderPage(
+      <PatternPage />,
+    )
+    fireEvent.change(getByLabelText('Fila'), { target: { value: '12' } })
+    fireEvent.change(getByLabelText('Instrucción'), {
+      target: { value: 'cerrar sisa' },
+    })
+    fireEvent.click(getByRole('button', { name: 'Añadir al patrón' }))
+    expect(getByRole('button', { name: 'Duplicar' })).toBeTruthy()
+    fireEvent.change(getByLabelText('Buscar en el patrón'), {
+      target: { value: 'sisa' },
+    })
+    expect(getByRole('button', { name: 'Duplicar' })).toBeTruthy()
+    fireEvent.change(getByLabelText('Buscar en el patrón'), {
+      target: { value: 'cuello' },
+    })
+    expect(getByText(/Ningún paso coincide/)).toBeTruthy()
+    expect(queryByRole('button', { name: 'Duplicar' })).toBeNull()
+    fireEvent.change(getByLabelText('Buscar en el patrón'), {
+      target: { value: '' },
+    })
+    fireEvent.click(getByRole('button', { name: 'Duplicar' }))
+    expect(getByText(/Copiada la fila 12/)).toBeTruthy()
   })
 
   it('projects lets you search, filter and create', () => {

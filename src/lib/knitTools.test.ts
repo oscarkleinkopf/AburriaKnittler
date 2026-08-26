@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   countFromGauge,
+  estimateYarnMeters,
   evenSpacing,
+  formatMeters,
   planEvenShaping,
 } from './knitTools'
 
@@ -40,6 +42,21 @@ describe('planEvenShaping', () => {
     expect(plan.instruction).toMatch(/aumenta 1/)
   })
 
+  it('uses yarn-over, kfb and SSK phrasing', () => {
+    const yo = planEvenShaping(40, 4, 'yo')
+    if ('error' in yo) throw new Error(yo.error)
+    expect(yo.instruction).toMatch(/lazada/)
+    const kfb = planEvenShaping(40, 4, 'kfb')
+    if ('error' in kfb) throw new Error(kfb.error)
+    expect(kfb.instruction).toMatch(/punto por delante y detrás/)
+    const ssk = planEvenShaping(100, -8, 'ssk')
+    if ('error' in ssk) throw new Error(ssk.error)
+    expect(ssk.instruction).toMatch(/2 juntos revés \(SSK\)/)
+    expect(planEvenShaping(10, 11, 'kfb')).toMatchObject({
+      error: expect.stringMatching(/por delante y por detrás/),
+    })
+  })
+
   it('rejects empty, zero or impossible shaping', () => {
     expect(planEvenShaping(1, 2)).toEqual({
       error: 'Indica cuántos puntos tienes ahora (al menos 2).',
@@ -65,5 +82,17 @@ describe('countFromGauge', () => {
     expect(countFromGauge(0, 10, 45)).toBeNull()
     expect(countFromGauge(22, 0, 45)).toBeNull()
     expect(countFromGauge(22, 10, 0)).toBeNull()
+  })
+})
+
+describe('estimateYarnMeters', () => {
+  it('scales swatch yarn by the target area', () => {
+    expect(estimateYarnMeters(8, 10, 45, 60)).toBe(216)
+    expect(formatMeters(12.5)).toBe('12,5 m')
+  })
+
+  it('returns null without a complete swatch', () => {
+    expect(estimateYarnMeters(0, 10, 45, 60)).toBeNull()
+    expect(estimateYarnMeters(8, 10, 45, 0)).toBeNull()
   })
 })
