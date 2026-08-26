@@ -156,13 +156,48 @@ async function geminiAnalyze(
   return normalize(extractJson(text) as Record<string, unknown>)
 }
 
+export const GEMINI_KEY_STORAGE = 'aburriaknittler.geminiKey'
+
+export function bundledGeminiKey(): string {
+  return import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? ''
+}
+
+export function loadGeminiKey(): string {
+  try {
+    return localStorage.getItem(GEMINI_KEY_STORAGE)?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveGeminiKey(key: string): void {
+  const text = key.trim()
+  try {
+    if (!text) localStorage.removeItem(GEMINI_KEY_STORAGE)
+    else localStorage.setItem(GEMINI_KEY_STORAGE, text)
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function maskGeminiKey(key: string): string {
+  const text = key.trim()
+  if (!text) return ''
+  if (text.length <= 4) return '••••'
+  return `••••${text.slice(-4)}`
+}
+
+export function resolveGeminiKey(): string {
+  return loadGeminiKey() || bundledGeminiKey()
+}
+
 export function hasGeminiKey(): boolean {
-  return Boolean(import.meta.env.VITE_GEMINI_API_KEY?.trim())
+  return Boolean(resolveGeminiKey())
 }
 
 /** Sin clave, la foto no «ve» el tejido: solo usa el tamaño del archivo. */
 export const LOCAL_ANALYSIS_NOTICE =
-  'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano.'
+  'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano, o pegar una clave de Gemini (se queda en este aparato).'
 
 export function isLocalAnalysis(result: AnalyzeResult | null): boolean {
   if (!result) return false
@@ -173,7 +208,7 @@ export function isLocalAnalysis(result: AnalyzeResult | null): boolean {
 }
 
 export async function analyzeGarmentPhoto(file: File): Promise<AnalyzeResult> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim()
+  const apiKey = resolveGeminiKey()
   if (apiKey) {
     return geminiAnalyze(file, apiKey)
   }

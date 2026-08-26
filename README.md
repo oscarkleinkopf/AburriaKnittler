@@ -40,10 +40,14 @@ Luego mira **Actions → Deploy to GitHub Pages**. Cuando termine en verde, reca
 
 También puedes lanzar el workflow a mano: **Actions → Deploy to GitHub Pages → Run workflow**.
 
-### Secreto opcional (IA)
+### Clave de Gemini (visión IA)
 
-**Settings → Secrets and variables → Actions →** `VITE_GEMINI_API_KEY`  
-Sin clave, el análisis usa modo local en el dispositivo.
+El análisis de fotos usa Gemini. En GitHub Pages **no hay servidor**: una clave `VITE_` queda dentro del JavaScript.
+
+- **Recomendado:** en **Analizar**, pega tu clave (Google AI Studio). Se guarda solo en este aparato, no en el respaldo del proyecto.
+- **Opcional en el repo:** **Settings → Secrets and variables → Actions →** `VITE_GEMINI_API_KEY` — sirve para tu sitio, pero es pública en el build.
+
+Sin clave, la foto estima por el tamaño de la imagen (poco preciso).
 
 ---
 
@@ -70,7 +74,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 - Vite + React + TypeScript (PWA)
 - GitHub Pages (`main` = estático, `source` = código)
-- Gemini opcional (`VITE_GEMINI_API_KEY`)
+- Gemini opcional (clave en el aparato, o `VITE_GEMINI_API_KEY` en el build)
 
 ## Características
 
@@ -83,7 +87,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
 8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10; deshacer el último toque
 9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
-10. **Analizar** — foto → rotar/recortar → estimación; sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; añade la foto a la galería del proyecto; voz alta
+10. **Analizar** — foto → rotar/recortar → estimación con Gemini si hay clave (en este aparato o de build); sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; añade la foto a la galería del proyecto; voz alta
 11. **Contador** — vueltas + puntos, segunda pieza (manga…), meta (aviso al llegar, con deshacer), marcadores con nombre, pitido suave, leer el paso al completar la vuelta, pantalla completa; al sumar una vuelta marca sola la instrucción de esa fila (deshacer la restaura); repeticiones en el paso; aviso de derecho/revés; candado contra toques accidentales; foto de portada a la vista; la pantalla no se apaga al tejer
 12. **Accesible** — Aa (letra, oscuro, contraste), botones grandes, márgenes seguros
 13. **PWA** — instalable; guía «Añadir a inicio» en la home
