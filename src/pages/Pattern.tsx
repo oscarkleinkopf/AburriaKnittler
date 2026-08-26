@@ -21,6 +21,7 @@ import {
   stepRepeatDone,
   stepRepeatTimes,
 } from '../lib/projects'
+import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { countFromGauge, planEvenShaping } from '../lib/knitTools'
 
 export function PatternPage() {
