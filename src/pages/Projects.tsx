@@ -43,6 +43,7 @@ export function ProjectsPage() {
     setPhoto,
     addPhoto,
     removePhoto,
+    setCover,
     importBackup,
   } = useProjects()
   const nameId = useId()
@@ -358,6 +359,21 @@ export function ProjectsPage() {
                           : `Foto ${index + 1} de ${active.name}`
                       }
                     />
+                    {index === 0 ? (
+                      <p className="photo-gallery__cover-label">Portada</p>
+                    ) : (
+                      <BigButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setCover(url)
+                          setError(null)
+                          setMessage('Esta foto es ahora la portada.')
+                        }}
+                      >
+                        Usar de portada
+                      </BigButton>
+                    )}
                     <BigButton
                       type="button"
                       variant="ghost"

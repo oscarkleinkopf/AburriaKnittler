@@ -4,6 +4,7 @@ import {
   backupToJson,
   buildPatternShare,
   collectPhotos,
+  setCoverPhoto,
   applyRowAdvanceToPattern,
   bumpPatternRepeat,
   clipLeaveNote,
@@ -695,6 +696,16 @@ describe('collectPhotos and gauge', () => {
     project.photoDataUrl = 'data:a'
     project.photos = ['data:b', 'data:a', 'data:c', 'data:d', 'data:e']
     expect(collectPhotos(project)).toEqual(['data:a', 'data:b', 'data:c', 'data:d'])
+  })
+
+  it('promotes a gallery photo to cover', () => {
+    const project = createProject('Chal')
+    project.photos = ['data:a', 'data:b', 'data:c']
+    project.photoDataUrl = 'data:a'
+    const next = setCoverPhoto(project, 'data:c')
+    expect(next.photos).toEqual(['data:c', 'data:a', 'data:b'])
+    expect(next.photoDataUrl).toBe('data:c')
+    expect(setCoverPhoto(project, 'data:z')).toBe(project)
   })
 
   it('formats tension notes in Spanish', () => {

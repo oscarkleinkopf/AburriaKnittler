@@ -22,6 +22,7 @@ import {
   stepRepeatTimes,
 } from '../lib/projects'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
+import { countFromGauge, planEvenShaping } from '../lib/knitTools'
 
 export function PatternPage() {
   const {
@@ -65,6 +66,17 @@ export function PatternPage() {
   const gaugeCmId = useId()
   const gaugeStitchesId = useId()
   const gaugeRowsId = useId()
+  const widthCmId = useId()
+  const lengthCmId = useId()
+  const shapeFromId = useId()
+  const shapeChangeId = useId()
+  const [widthCm, setWidthCm] = useState('')
+  const [lengthCm, setLengthCm] = useState('')
+  const [shapeFrom, setShapeFrom] = useState('')
+  const [shapeChange, setShapeChange] = useState('')
+  const [shapeKind, setShapeKind] = useState<'increase' | 'decrease'>(
+    'decrease',
+  )
 
   useEffect(() => {
     markOpened()
@@ -482,6 +494,159 @@ export function PatternPage() {
             placeholder="0 = no"
           />
         </div>
+      </div>
+
+      <div className="stack no-print">
+        <h2 className="section-title">Calculadora</h2>
+        <p className="muted">
+          Montar puntos o filas desde la muestra, y repartir aumentos o
+          disminuciones en una vuelta.
+        </p>
+        <div className="field">
+          <label htmlFor={widthCmId}>Ancho que quieres (cm)</label>
+          <input
+            id={widthCmId}
+            type="number"
+            min={1}
+            step="0.5"
+            inputMode="decimal"
+            value={widthCm}
+            onChange={(e) => setWidthCm(e.target.value)}
+            placeholder="p. ej. 45"
+          />
+        </div>
+        {(() => {
+          const cm = Number.parseFloat(widthCm.replace(',', '.'))
+          const n = countFromGauge(active.gaugeStitches, active.gaugeCm, cm)
+          if (!widthCm.trim()) return null
+          if (n == null) {
+            return (
+              <p className="muted">
+                Rellena los puntos de la muestra para calcular el montaje.
+              </p>
+            )
+          }
+          return (
+            <p className="calc-result">
+              Monta <strong>{n}</strong> puntos para {cm} cm.
+            </p>
+          )
+        })()}
+        <div className="field">
+          <label htmlFor={lengthCmId}>Largo que quieres (cm)</label>
+          <input
+            id={lengthCmId}
+            type="number"
+            min={1}
+            step="0.5"
+            inputMode="decimal"
+            value={lengthCm}
+            onChange={(e) => setLengthCm(e.target.value)}
+            placeholder="p. ej. 60"
+          />
+        </div>
+        {(() => {
+          const cm = Number.parseFloat(lengthCm.replace(',', '.'))
+          const n = countFromGauge(active.gaugeRows, active.gaugeCm, cm)
+          if (!lengthCm.trim()) return null
+          if (n == null) {
+            return (
+              <p className="muted">
+                Rellena las filas de la muestra para calcular el largo.
+              </p>
+            )
+          }
+          return (
+            <p className="calc-result">
+              Teje unas <strong>{n}</strong> filas para {cm} cm.
+            </p>
+          )
+        })()}
+        <fieldset className="backup-modes">
+          <legend className="sr-only">Aumentar o disminuir</legend>
+          <label className="backup-mode">
+            <input
+              type="radio"
+              name="shape-kind"
+              checked={shapeKind === 'decrease'}
+              onChange={() => setShapeKind('decrease')}
+            />
+            Disminuir
+          </label>
+          <label className="backup-mode">
+            <input
+              type="radio"
+              name="shape-kind"
+              checked={shapeKind === 'increase'}
+              onChange={() => setShapeKind('increase')}
+            />
+            Aumentar
+          </label>
+        </fieldset>
+        <div className="field">
+          <label htmlFor={shapeFromId}>Puntos ahora</label>
+          <input
+            id={shapeFromId}
+            type="number"
+            min={2}
+            inputMode="numeric"
+            value={shapeFrom}
+            onChange={(e) => setShapeFrom(e.target.value)}
+            placeholder={active.stitches > 1 ? String(active.stitches) : '100'}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={shapeChangeId}>
+            {shapeKind === 'increase'
+              ? 'Puntos a aumentar'
+              : 'Puntos a disminuir'}
+          </label>
+          <input
+            id={shapeChangeId}
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={shapeChange}
+            onChange={(e) => setShapeChange(e.target.value)}
+            placeholder="8"
+          />
+        </div>
+        {(() => {
+          const fromRaw = Number.parseInt(shapeFrom, 10)
+          const from = Number.isFinite(fromRaw)
+            ? fromRaw
+            : active.stitches > 1
+              ? active.stitches
+              : NaN
+          const changeRaw = Number.parseInt(shapeChange, 10)
+          if (!Number.isFinite(from) || !Number.isFinite(changeRaw)) {
+            return null
+          }
+          const plan = planEvenShaping(
+            from,
+            shapeKind === 'increase' ? changeRaw : -changeRaw,
+          )
+          if ('error' in plan) {
+            return <p className="muted">{plan.error}</p>
+          }
+          return (
+            <div className="stack">
+              <p className="calc-result">{plan.instruction}</p>
+              <BigButton
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  const n = Number.parseInt(row, 10)
+                  const stepRow = Number.isFinite(n) ? n : active.rows
+                  addPatternStep(stepRow, plan.instruction)
+                  setMessage(`Añadida la instrucción a la fila ${stepRow}.`)
+                }}
+              >
+                Añadir cálculo al patrón
+              </BigButton>
+            </div>
+          )
+        })()}
       </div>
 
       <div className="stack no-print">
