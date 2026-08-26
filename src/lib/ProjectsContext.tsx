@@ -17,9 +17,11 @@ import {
   createId,
   createProject,
   duplicateProject,
+  duplicatePatternStep,
   hasPiece,
   loadState,
   MAX_PHOTOS,
+  MAX_PATTERN_STEPS,
   MAX_STEP_REPEATS,
   parseBackupJson,
   pushHistory,
@@ -89,6 +91,7 @@ type ProjectsApi = {
     patch: { row?: number; instruction?: string; repeatTimes?: number },
   ) => void
   removePatternStep: (stepId: string) => void
+  duplicatePatternStep: (stepId: string) => boolean
   movePatternStep: (stepId: string, direction: -1 | 1) => void
   startTimer: () => void
   stopTimer: () => void
@@ -439,6 +442,18 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const duplicateStep = useCallback((stepId: string) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current) return false
+    if (current.patternSteps.length >= MAX_PATTERN_STEPS) return false
+    if (!current.patternSteps.some((s) => s.id === stepId)) return false
+    patchActive((p) => ({
+      ...p,
+      patternSteps: duplicatePatternStep(p.patternSteps, stepId),
+    }))
+    return true
+  }, [])
+
   const moveStep = useCallback((stepId: string, direction: -1 | 1) => {
     patchActive((p) => ({
       ...p,
@@ -514,6 +529,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       bumpStepRepeat,
       updatePatternStep: updateStep,
       removePatternStep,
+      duplicatePatternStep: duplicateStep,
       movePatternStep: moveStep,
       startTimer,
       stopTimer,
@@ -554,6 +570,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       bumpStepRepeat,
       updateStep,
       removePatternStep,
+      duplicateStep,
       moveStep,
       startTimer,
       stopTimer,

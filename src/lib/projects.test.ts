@@ -11,6 +11,7 @@ import {
   createProject,
   currentPatternStep,
   duplicateProject,
+  duplicatePatternStep,
   formatClock,
   formatDuration,
   formatGauge,
@@ -27,6 +28,7 @@ import {
   patternStepsToText,
   projectMatchesFilter,
   projectMatchesQuery,
+  patternStepMatchesQuery,
   pushHistory,
   repeatPatternRange,
   restoreProjectInState,
@@ -719,6 +721,8 @@ describe('collectPhotos and gauge', () => {
     expect(formatGauge(project)).toBe(
       'Muestra 10 cm: 22 puntos × 30 filas · Aguja 4,5 mm · Merina',
     )
+    project.gaugeMeters = 8.5
+    expect(formatGauge(project)).toMatch(/8,5 m en la muestra/)
   })
 })
 
@@ -746,6 +750,46 @@ describe('movePatternStep', () => {
     const down = movePatternStep(steps, 'a', 1)
     expect(down.find((s) => s.id === 'a')?.row).toBe(11)
     expect(down.find((s) => s.id === 'b')?.row).toBe(10)
+  })
+})
+
+describe('duplicatePatternStep', () => {
+  it('inserts an unmarked copy after the original', () => {
+    const steps: PatternStep[] = [
+      {
+        id: 'a',
+        row: 8,
+        instruction: 'sisa',
+        done: true,
+        repeatTimes: 4,
+        repeatDone: 2,
+      },
+      { id: 'b', row: 12, instruction: 'cierre', done: false },
+    ]
+    const next = duplicatePatternStep(steps, 'a')
+    expect(next).toHaveLength(3)
+    expect(next[0].id).toBe('a')
+    expect(next[1].instruction).toBe('sisa')
+    expect(next[1].id).not.toBe('a')
+    expect(next[1].done).toBe(false)
+    expect(next[1].repeatDone).toBe(0)
+    expect(next[1].repeatTimes).toBe(4)
+    expect(next[2].id).toBe('b')
+    expect(duplicatePatternStep(steps, 'z')).toBe(steps)
+  })
+})
+
+describe('patternStepMatchesQuery', () => {
+  it('matches row number and instruction without accents', () => {
+    const step: PatternStep = {
+      id: 's',
+      row: 12,
+      instruction: 'Cerrar sisa',
+      done: false,
+    }
+    expect(patternStepMatchesQuery(step, 'SISA')).toBe(true)
+    expect(patternStepMatchesQuery(step, '12')).toBe(true)
+    expect(patternStepMatchesQuery(step, 'cuello')).toBe(false)
   })
 })
 
