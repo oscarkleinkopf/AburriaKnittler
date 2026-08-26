@@ -28,6 +28,34 @@ describe('pantallas', () => {
     expect(getByLabelText(/Repeticiones en esta fila/)).toBeTruthy()
   })
 
+  it('calculator turns gauge into a cast-on and even decreases', () => {
+    const { getByLabelText, getByRole, getByText } = renderPage(<PatternPage />)
+    fireEvent.change(getByLabelText('Puntos en esa muestra'), {
+      target: { value: '22' },
+    })
+    fireEvent.change(getByLabelText('Ancho que quieres (cm)'), {
+      target: { value: '45' },
+    })
+    expect(
+      getByText((_, node) =>
+        Boolean(
+          node?.classList.contains('calc-result') &&
+            node.textContent?.includes('Monta 99 puntos para 45 cm'),
+        ),
+      ),
+    ).toBeTruthy()
+    fireEvent.change(getByLabelText('Puntos ahora'), {
+      target: { value: '100' },
+    })
+    fireEvent.change(getByLabelText('Puntos a disminuir'), {
+      target: { value: '8' },
+    })
+    expect(getByText(/Disminuye 8: de 100 a 92 puntos/)).toBeTruthy()
+    expect(
+      getByRole('button', { name: 'Añadir cálculo al patrón' }),
+    ).toBeTruthy()
+  })
+
   it('projects lets you search, filter and create', () => {
     const { getByLabelText, getByRole } = renderPage(<ProjectsPage />)
     expect(getByRole('heading', { name: 'Proyectos' })).toBeTruthy()
