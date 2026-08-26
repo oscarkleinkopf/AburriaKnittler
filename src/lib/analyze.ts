@@ -1,68 +1,14 @@
-export type AnalyzeResult = {
-  estimatedStitches: number | null
-  estimatedRows: number | null
-  stitchType: string
-  patternStructure: string
-  confidence: string
-  notes: string
-}
+import {
+  ALLOWED_ANALYZE_MIME,
+  ANALYZE_PROMPT,
+  coerceAnalyzeMime,
+  extractJson,
+  MAX_ANALYZE_BASE64_CHARS,
+  normalizeAnalyzeResult,
+  type AnalyzeResult,
+} from './analyzeShared'
 
-const PROMPT = `Eres un asistente experto en tejido a mano (punto y crochet).
-Analiza la foto de una prenda o muestra de tejido y estima, de forma orientativa:
-- cantidad aproximada de puntos (stitches) visibles o por fila típica de la prenda
-- cantidad aproximada de filas (rows)
-- tipo de puntada más probable (p. ej. punto jersey, musgo, elástico 1x1, crochet alto, etc.)
-- estructura breve del patrón (cómo se organiza el tejido)
-
-Responde SOLO con JSON válido (sin markdown) con estas claves:
-{
-  "estimatedStitches": number | null,
-  "estimatedRows": number | null,
-  "stitchType": string,
-  "patternStructure": string,
-  "confidence": string,
-  "notes": string
-}
-
-"confidence" debe ser "baja", "media" o "alta".
-Si la imagen no es un tejido claro, pon nulls donde no puedas estimar y explícalo en notes.
-Sé honesto: son estimaciones, no medidas exactas. Responde en español.`
-
-function extractJson(text: string): unknown {
-  const trimmed = text.trim()
-  try {
-    return JSON.parse(trimmed)
-  } catch {
-    const start = trimmed.indexOf('{')
-    const end = trimmed.lastIndexOf('}')
-    if (start >= 0 && end > start) {
-      return JSON.parse(trimmed.slice(start, end + 1))
-    }
-    throw new Error('Respuesta no válida del modelo')
-  }
-}
-
-function normalize(parsed: Record<string, unknown>): AnalyzeResult {
-  return {
-    estimatedStitches:
-      typeof parsed.estimatedStitches === 'number'
-        ? parsed.estimatedStitches
-        : null,
-    estimatedRows:
-      typeof parsed.estimatedRows === 'number' ? parsed.estimatedRows : null,
-    stitchType:
-      typeof parsed.stitchType === 'string'
-        ? parsed.stitchType
-        : 'No determinado',
-    patternStructure:
-      typeof parsed.patternStructure === 'string'
-        ? parsed.patternStructure
-        : 'No determinado',
-    confidence:
-      typeof parsed.confidence === 'string' ? parsed.confidence : 'baja',
-    notes: typeof parsed.notes === 'string' ? parsed.notes : '',
-  }
-}
+export type { AnalyzeResult } from './analyzeShared'
 
 async function fileToBase64(
   file: File,
@@ -73,11 +19,113 @@ async function fileToBase64(
       const result = String(reader.result ?? '')
       const comma = result.indexOf(',')
       const base64 = comma >= 0 ? result.slice(comma + 1) : result
-      resolve({ base64, mimeType: file.type || 'image/jpeg' })
+      resolve({
+        base64,
+        mimeType: coerceAnalyzeMime(file.type || 'image/jpeg'),
+      })
     }
     reader.onerror = () => reject(new Error('No se pudo leer la imagen'))
     reader.readAsDataURL(file)
   })
+}
+
+const SKIP_COMPRESS_BYTES = 400_000
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    const timer = window.setTimeout(() => {
+      URL.revokeObjectURL(url)
+      reject(new Error('La foto tardó demasiado en cargarse.'))
+    }, 4000)
+    img.onload = () => {
+      window.clearTimeout(timer)
+      URL.revokeObjectURL(url)
+      resolve(img)
+    }
+    img.onerror = () => {
+      window.clearTimeout(timer)
+      URL.revokeObjectURL(url)
+      reject(new Error('No se pudo leer la imagen'))
+    }
+    img.src = url
+  })
+}
+
+function canvasToJpeg(
+  img: HTMLImageElement,
+  maxSide: number,
+  quality: number,
+): string {
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+  const w = Math.max(1, Math.round(img.width * scale))
+  const h = Math.max(1, Math.round(img.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('No se pudo preparar la imagen')
+  ctx.drawImage(img, 0, 0, w, h)
+  return canvas.toDataURL('image/jpeg', quality)
+}
+
+async function compressForVision(
+  file: File,
+): Promise<{ mimeType: string; data: string }> {
+  const img = await loadImage(file)
+  const attempts: Array<{ maxSide: number; quality: number }> = [
+    { maxSide: 1280, quality: 0.82 },
+    { maxSide: 960, quality: 0.7 },
+    { maxSide: 720, quality: 0.58 },
+  ]
+  let data = ''
+  for (const attempt of attempts) {
+    const dataUrl = canvasToJpeg(img, attempt.maxSide, attempt.quality)
+    const comma = dataUrl.indexOf(',')
+    data = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl
+    if (data.length <= MAX_ANALYZE_BASE64_CHARS) {
+      return { mimeType: 'image/jpeg', data }
+    }
+  }
+  throw new Error(
+    'La foto es demasiado grande. Recórtala o elige una más liviana.',
+  )
+}
+
+async function imageToVisionPayload(
+  file: File,
+): Promise<{ mimeType: string; data: string }> {
+  const mime = coerceAnalyzeMime(file.type || 'image/jpeg')
+  if (!ALLOWED_ANALYZE_MIME.has(mime)) {
+    throw new Error('Elige una foto (JPG, PNG o similar).')
+  }
+  if (file.size <= SKIP_COMPRESS_BYTES) {
+    const { base64, mimeType } = await fileToBase64(file)
+    if (base64.length > MAX_ANALYZE_BASE64_CHARS) {
+      throw new Error(
+        'La foto es demasiado grande. Recórtala o elige una más liviana.',
+      )
+    }
+    return { mimeType, data: base64 }
+  }
+  try {
+    return await compressForVision(file)
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      /demasiado grande/i.test(err.message)
+    ) {
+      throw err
+    }
+    const { base64, mimeType } = await fileToBase64(file)
+    if (base64.length > MAX_ANALYZE_BASE64_CHARS) {
+      throw new Error(
+        'La foto es demasiado grande. Recórtala o elige una más liviana.',
+      )
+    }
+    return { mimeType, data: base64 }
+  }
 }
 
 /** Estimación local cuando no hay clave de Gemini (GitHub Pages sin secretos). */
@@ -108,7 +156,7 @@ async function geminiAnalyze(
   file: File,
   apiKey: string,
 ): Promise<AnalyzeResult> {
-  const { base64, mimeType } = await fileToBase64(file)
+  const { mimeType, data } = await imageToVisionPayload(file)
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`
 
   const res = await fetch(url, {
@@ -119,8 +167,8 @@ async function geminiAnalyze(
         {
           role: 'user',
           parts: [
-            { text: PROMPT },
-            { inline_data: { mime_type: mimeType, data: base64 } },
+            { text: ANALYZE_PROMPT },
+            { inline_data: { mime_type: mimeType, data } },
           ],
         },
       ],
@@ -130,7 +178,7 @@ async function geminiAnalyze(
     }),
   })
 
-  const data = (await res.json().catch(() => ({}))) as {
+  const payload = (await res.json().catch(() => ({}))) as {
     error?: { message?: string }
     candidates?: Array<{
       content?: { parts?: Array<{ text?: string }> }
@@ -139,12 +187,12 @@ async function geminiAnalyze(
 
   if (!res.ok) {
     throw new Error(
-      data.error?.message ||
+      payload.error?.message ||
         'No se pudo contactar con Gemini. Revisa la clave API.',
     )
   }
 
-  const text = data.candidates?.[0]?.content?.parts
+  const text = payload.candidates?.[0]?.content?.parts
     ?.map((p) => p.text ?? '')
     .join('')
     .trim()
@@ -153,13 +201,21 @@ async function geminiAnalyze(
     throw new Error('Gemini no devolvió una respuesta usable.')
   }
 
-  return normalize(extractJson(text) as Record<string, unknown>)
+  return normalizeAnalyzeResult(extractJson(text) as Record<string, unknown>)
 }
 
 export const GEMINI_KEY_STORAGE = 'aburriaknittler.geminiKey'
 
 export function bundledGeminiKey(): string {
   return import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? ''
+}
+
+export function analyzeApiPath(): string {
+  return import.meta.env.VITE_ANALYZE_API?.trim() ?? ''
+}
+
+export function hasServerVision(): boolean {
+  return Boolean(analyzeApiPath())
 }
 
 export function loadGeminiKey(): string {
@@ -195,6 +251,10 @@ export function hasGeminiKey(): boolean {
   return Boolean(resolveGeminiKey())
 }
 
+export function hasVision(): boolean {
+  return hasServerVision() || hasGeminiKey()
+}
+
 /** Sin clave, la foto no «ve» el tejido: solo usa el tamaño del archivo. */
 export const LOCAL_ANALYSIS_NOTICE =
   'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano, o pegar una clave de Gemini (se queda en este aparato).'
@@ -207,7 +267,42 @@ export function isLocalAnalysis(result: AnalyzeResult | null): boolean {
   )
 }
 
+export async function analyzeViaServer(
+  file: File,
+  apiPath = analyzeApiPath(),
+): Promise<AnalyzeResult> {
+  if (!apiPath) {
+    throw new Error('No hay API de análisis configurada.')
+  }
+  const payload = await imageToVisionPayload(file)
+  const res = await fetch(apiPath, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & {
+    error?: string
+  }
+  if (!res.ok) {
+    throw new Error(
+      typeof data.error === 'string' && data.error
+        ? data.error
+        : 'No se pudo analizar la foto en el servidor.',
+    )
+  }
+  return normalizeAnalyzeResult(data)
+}
+
 export async function analyzeGarmentPhoto(file: File): Promise<AnalyzeResult> {
+  if (hasServerVision()) {
+    try {
+      return await analyzeViaServer(file)
+    } catch (err) {
+      const apiKey = resolveGeminiKey()
+      if (apiKey) return geminiAnalyze(file, apiKey)
+      throw err
+    }
+  }
   const apiKey = resolveGeminiKey()
   if (apiKey) {
     return geminiAnalyze(file, apiKey)

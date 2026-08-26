@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import netlify from '@netlify/vite-plugin'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // Project Pages URL: https://<user>.github.io/AburriaKnittler/
@@ -9,6 +10,7 @@ export default defineConfig({
   base,
   plugins: [
     react(),
+    ...(process.env.VITEST ? [] : [netlify()]),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/icon.svg', 'hero-knit.svg'],
@@ -35,6 +37,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
         navigateFallback: `${base}index.html`,
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],

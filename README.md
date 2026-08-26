@@ -49,6 +49,18 @@ El análisis de fotos usa Gemini. En GitHub Pages **no hay servidor**: una clave
 
 Sin clave, la foto estima por el tamaño de la imagen (poco preciso).
 
+### Sitio público en Netlify (dominio .cl)
+
+GitHub Pages sigue igual. Para un dominio propio (cuando lo elijas) y **visión IA sin poner la clave en el JavaScript**, conecta este repo a Netlify. La rama a publicar es **`source`** (no `main`: `main` solo tiene el estático de Pages).
+
+1. En [Netlify](https://app.netlify.com): **Add new site → Import an existing project → GitHub** → este repo.
+2. Branch: **`source`**. Build y publish los toma de `netlify.toml` (`npm run build`, carpeta `dist`, base `/`).
+3. Primer deploy de **producción**. Luego **Site configuration → AI** (o el interruptor de AI Features) y **actívalo**. El AI Gateway no funciona hasta ese primer deploy.
+4. **No** pongas `VITE_GEMINI_API_KEY` ni `GEMINI_API_KEY` en las variables de Netlify. La función `/api/analizar` usa el gateway; si pones tu propia clave de Google, se salta el proxy.
+5. Cuando tengas el dominio `.cl`: **Domain management → Add a domain** y sigue las instrucciones de DNS (registro en nic.cl / tu registrador). El código ya está listo; no hace falta otro deploy solo por el nombre.
+
+Local con la función: `npm run dev` (base `/` y `VITE_ANALYZE_API=/api/analizar`). Hasta que el sitio de Netlify tenga un deploy de producción, el gateway local puede responder que falta la IA; en ese caso puedes pegar una clave en **Analizar** (queda en el aparato).
+
 ---
 
 ## Desarrollo local
@@ -74,7 +86,8 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 - Vite + React + TypeScript (PWA)
 - GitHub Pages (`main` = estático, `source` = código)
-- Gemini opcional (clave en el aparato, o `VITE_GEMINI_API_KEY` en el build)
+- Netlify (opcional): SPA en la raíz + función `/api/analizar` con AI Gateway
+- Gemini: en Netlify va por el servidor; en Pages, clave en el aparato o `VITE_GEMINI_API_KEY` en el build
 
 ## Características
 
@@ -87,7 +100,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 7. **Modo oscuro** — sigue el sistema hasta que elijas Oscuro/Claro
 8. **Atajos del contador** — mantener pulsado: ±5 y luego ±10; deshacer el último toque
 9. **Compartir proyecto** — un JSON suelto (o hoja de compartir del sistema)
-10. **Analizar** — foto → rotar/recortar → estimación con Gemini si hay clave (en este aparato o de build); sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; añade la foto a la galería del proyecto; voz alta
+10. **Analizar** — foto → rotar/recortar → estimación con Gemini (en Netlify por `/api/analizar`; en Pages si hay clave en el aparato o de build); sin IA avisa que es flojo y manda a escribir a mano; corregir; pasar al contador, a la meta o al patrón; añade la foto a la galería del proyecto; voz alta
 11. **Contador** — vueltas + puntos, segunda pieza (manga…), meta (aviso al llegar, con deshacer), marcadores con nombre, pitido suave, leer el paso al completar la vuelta, pantalla completa; al sumar una vuelta marca sola la instrucción de esa fila (deshacer la restaura); repeticiones en el paso; aviso de derecho/revés; candado contra toques accidentales; foto de portada a la vista; la pantalla no se apaga al tejer
 12. **Accesible** — Aa (letra, oscuro, contraste), botones grandes, márgenes seguros
 13. **PWA** — instalable; guía «Añadir a inicio» en la home
@@ -96,7 +109,7 @@ Abre la URL de preview bajo `/AburriaKnittler/`.
 
 | Comando | Uso |
 | --- | --- |
-| `npm run dev` | Desarrollo (base `/`) |
+| `npm run dev` | Desarrollo (base `/`, llama a `/api/analizar` si el plugin de Netlify está activo) |
 | `npm run build:pages` | Build con base `/AburriaKnittler/` + `404.html` |
 | `npm run preview` | Vista previa del build |
 | `npm run test` | Tests del respaldo, patrón, pantallas y tamaño de letra |

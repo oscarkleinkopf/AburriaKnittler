@@ -448,6 +448,20 @@
   color: var(--color-ink-muted);
 }
 
+details.stack > summary {
+  cursor: pointer;
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+details.stack > summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .calc-result {
   margin: 0;
   font-weight: 800;

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "VITE_BASE=/ vite",
+    "dev": "VITE_BASE=/ VITE_ANALYZE_API=/api/analizar vite",
     "build": "tsc -b && vite build",
     "build:pages": "VITE_BASE=/AburriaKnittler/ npm run build && cp dist/index.html dist/404.html && touch dist/.nojekyll",
     "lint": "oxlint",
@@ -12,11 +12,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^2.19.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@netlify/functions": "^6.0.0",
+    "@netlify/vite-plugin": "^3.0.0",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",

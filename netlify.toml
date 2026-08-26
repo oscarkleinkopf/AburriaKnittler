@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  VITE_BASE = "/"
+  VITE_ANALYZE_API = "/api/analizar"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# SPA fallback. /api/analizar is a function (config.path) and wins over this.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
