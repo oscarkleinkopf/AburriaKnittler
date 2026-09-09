@@ -1,85 +1,37 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import { LongSessionBanner } from '../components/LongSessionBanner'
+import { CounterControls } from '../components/counter/CounterControls'
+import { CounterDisplay } from '../components/counter/CounterDisplay'
+import { CounterGoalProgress } from '../components/counter/CounterGoalProgress'
+import { ErgonomicsModal } from '../components/counter/ErgonomicsModal'
+import { KeyboardShortcutsModal } from '../components/counter/KeyboardShortcutsModal'
+import { LeaveNoteEditor } from '../components/counter/LeaveNoteEditor'
+import { MotifRepeatCounter } from '../components/counter/MotifRepeatCounter'
+import { NamedMarkersList } from '../components/counter/NamedMarkersList'
+import { SessionHistoryView } from '../components/counter/SessionHistoryView'
 import { usePrefs } from '../lib/PrefsContext'
 import { useProjects } from '../lib/ProjectsContext'
 import { vibrateBrief } from '../lib/prefs'
-import { playGoalBeep, playMarkerBeep } from '../lib/sound'
 import {
-  clipLeaveNote,
-  currentPatternStep,
-  formatClock,
   formatDuration,
   formatGauge,
   formatRelativeDate,
   goalProgress,
-  groupSessionsByDay,
   justReachedGoal,
-  MAX_LEAVE_NOTE,
   namedMarkerAt,
   nextPendingPatternStep,
   patternStepForRow,
   patternStepToSpeech,
   sessionMsToday,
   totalSessionMs,
-  type KnitSession,
 } from '../lib/projects'
+import { playGoalBeep, playMarkerBeep } from '../lib/sound'
 import { canSpeak, speakText, stopSpeaking } from '../lib/speech'
 import { useHoldRepeat } from '../lib/useHoldRepeat'
 import { useWakeLock } from '../lib/useWakeLock'
-
-const SESSION_PREVIEW = 8
-
-function SessionHistory({
-  sessions,
-  showAll,
-  onToggle,
-}: {
-  sessions: KnitSession[]
-  showAll: boolean
-  onToggle: () => void
-}) {
-  const visible = showAll ? sessions : sessions.slice(0, SESSION_PREVIEW)
-  const groups = groupSessionsByDay(visible)
-  const hidden = Math.max(0, sessions.length - SESSION_PREVIEW)
-
-  return (
-    <div className="session-history">
-      {groups.map((group) => (
-        <section key={group.dayKey} className="session-day">
-          <h3 className="session-day__head">
-            <span>{group.label}</span>
-            <span>{formatDuration(group.totalMs)}</span>
-          </h3>
-          <ol className="session-day__list">
-            {group.sessions.map((s) => (
-              <li key={s.id}>
-                <span>
-                  {formatClock(s.startedAt)}–{formatClock(s.endedAt)}
-                </span>
-                <span>{formatDuration(s.durationMs)}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ))}
-      {hidden > 0 && (
-        <BigButton
-          type="button"
-          variant="ghost"
-          className="session-history__more"
-          onClick={onToggle}
-        >
-          {showAll
-            ? 'Ver menos'
-            : `Ver todas (${hidden} más)`}
-        </BigButton>
-      )}
-    </div>
-  )
-}
 
 export function CounterPage() {
   const {
@@ -106,29 +58,26 @@ export function CounterPage() {
   const [now, setNow] = useState(() => Date.now())
   const [showAllSessions, setShowAllSessions] = useState(false)
   const [speaking, setSpeaking] = useState(false)
-  const [markerLabel, setMarkerLabel] = useState('')
-  const [markerRow, setMarkerRow] = useState('')
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showErgoModal, setShowErgoModal] = useState(false)
+  const lastErgoAlert = useRef<number>(Date.now())
   const bumpTimer = useRef<number | null>(null)
   const markerId = useId()
-  const targetId = useId()
-  const namedRowId = useId()
-  const namedLabelId = useId()
   const soundId = useId()
   const vibeId = useId()
   const speakId = useId()
-  const leaveNoteId = useId()
   const locked = Boolean(active?.tapsLocked)
   const prevRows = useRef(active?.rows ?? 0)
   const speakTimer = useRef<number | null>(null)
 
-  function triggerBump() {
+  const triggerBump = useCallback(() => {
     setBump(false)
     window.requestAnimationFrame(() => {
       setBump(true)
       if (bumpTimer.current) window.clearTimeout(bumpTimer.current)
       bumpTimer.current = window.setTimeout(() => setBump(false), 280)
     })
-  }
+  }, [])
 
   const rowHold = useHoldRepeat({
     onStep: (n) => {
@@ -151,7 +100,6 @@ export function CounterPage() {
     onStep: (n) => {
       if (locked) return
       bumpStitches(n)
-      triggerBump()
     },
   })
   const stitchHoldDown = useHoldRepeat({
@@ -161,737 +109,403 @@ export function CounterPage() {
     onStep: (n) => {
       if (locked) return
       bumpStitches(n)
-      triggerBump()
     },
   })
 
-  function onUndo() {
-    undoLast()
-    triggerBump()
-  }
-
-  useWakeLock(Boolean(active?.timerStartedAt) || fullscreen)
+  useWakeLock(Boolean(active?.timerStartedAt))
 
   useEffect(() => {
     markOpened()
   }, [active?.id, markOpened])
 
   useEffect(() => {
-    if (!active?.timerStartedAt) return
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
-  }, [active?.timerStartedAt])
+  }, [])
+
+  const activeSessionMinutes = active?.timerStartedAt
+    ? Math.max(0, (now - Date.parse(active.timerStartedAt)) / 60000)
+    : 0
 
   useEffect(() => {
-    prevRows.current = active?.rows ?? 0
-    setMarkerHit(null)
-    setGoalHit(false)
-  }, [active?.id])
+    if (
+      active?.timerStartedAt &&
+      activeSessionMinutes >= 45 &&
+      now - lastErgoAlert.current > 40 * 60 * 1000
+    ) {
+      setShowErgoModal(true)
+      lastErgoAlert.current = now
+    }
+  }, [active?.timerStartedAt, activeSessionMinutes, now])
 
+  useEffect(() => {
+    return () => stopSpeaking()
+  }, [])
+
+  // Revisar avisos de meta o marcador al cambiar vueltas
   useEffect(() => {
     if (!active) return
     const prev = prevRows.current
-    const next = active.rows
-    prevRows.current = next
-    if (next <= prev) {
-      if (active.targetRows <= 0 || next < active.targetRows) {
-        setGoalHit(false)
-      }
-      return
-    }
-    const named = namedMarkerAt(active, next)
-    const every =
-      active.markerEvery > 0 && next % active.markerEvery === 0
-    if (named || every) {
-      const bits = [
-        named ? named.label : null,
-        every ? `cada ${active.markerEvery}` : null,
-      ].filter(Boolean)
-      setMarkerHit(`Marcador: vuelta ${next} (${bits.join(' · ')})`)
-      if (alerts.sound) playMarkerBeep()
-      if (alerts.vibrate) vibrateBrief([50, 40, 50, 40, 80])
-      window.setTimeout(() => setMarkerHit(null), 2500)
-    }
-    if (justReachedGoal(prev, next, active.targetRows)) {
-      setGoalHit(true)
-      if (alerts.sound) playGoalBeep()
-      if (alerts.vibrate) vibrateBrief([80, 50, 80, 50, 140])
-    }
-    if (alerts.speakStep && canSpeak()) {
-      const step = currentPatternStep(active)
-      if (step) {
-        if (speakTimer.current) window.clearTimeout(speakTimer.current)
-        speakTimer.current = window.setTimeout(() => {
-          speakText(patternStepToSpeech(step))
-          setSpeaking(true)
-        }, 280)
-      }
-    }
-  }, [active, active?.rows, active?.markerEvery, active?.namedMarkers, active?.targetRows, alerts.sound, alerts.vibrate, alerts.speakStep])
+    const curr = active.rows
+    prevRows.current = curr
 
-  useEffect(() => {
-    if (!fullscreen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (locked) {
-        if (active) updateProject(active.id, { tapsLocked: false })
-        return
+    if (curr > prev) {
+      if (justReachedGoal(prev, curr, active.targetRows)) {
+        setGoalHit(true)
+        if (alerts.sound) playGoalBeep()
+        if (alerts.vibrate) vibrateBrief([120, 80, 200])
       }
-      setFullscreen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
-  }, [fullscreen, locked, active, updateProject])
 
-  useEffect(() => {
-    return () => {
-      stopSpeaking()
-      if (speakTimer.current) window.clearTimeout(speakTimer.current)
+      const named = namedMarkerAt(active, curr)
+      if (named) {
+        setMarkerHit(`Marcador: ${named.label} (fila ${curr})`)
+        if (alerts.sound) playMarkerBeep()
+        if (alerts.vibrate) vibrateBrief(80)
+      } else if (
+        active.markerEvery > 0 &&
+        curr % active.markerEvery === 0 &&
+        curr > 0
+      ) {
+        setMarkerHit(`Aviso cada ${active.markerEvery} vueltas (vuelta ${curr})`)
+        if (alerts.sound) playMarkerBeep()
+        if (alerts.vibrate) vibrateBrief(50)
+      }
+
+      if (alerts.speakStep) {
+        const step = patternStepForRow(active, curr)
+        if (step) {
+          if (speakTimer.current) window.clearTimeout(speakTimer.current)
+          speakTimer.current = window.setTimeout(() => {
+            speakText(patternStepToSpeech(step))
+          }, 180)
+        }
+      }
     }
-  }, [])
+  }, [
+    active,
+    alerts.sound,
+    alerts.vibrate,
+    alerts.speakStep,
+  ])
+
+  // Atajos de teclado accesibles
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      if (isInput) return
+
+      if (e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (!locked) {
+          bumpRows(1)
+          triggerBump()
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (!locked) {
+          bumpRows(-1)
+          triggerBump()
+        }
+      } else if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault()
+        undoLast()
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault()
+        if (active) {
+          updateProject(active.id, { tapsLocked: !active.tapsLocked })
+        }
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        setFullscreen((prev) => !prev)
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        if (active) {
+          const step = patternStepForRow(active, active.rows)
+          if (step) {
+            speakText(patternStepToSpeech(step))
+          }
+        }
+      } else if (e.key === '?') {
+        e.preventDefault()
+        setShowShortcuts((prev) => !prev)
+      } else if (e.key === 'Escape' && fullscreen) {
+        e.preventDefault()
+        setFullscreen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [locked, bumpRows, triggerBump, undoLast, active, updateProject, fullscreen])
 
   if (!active) {
     return (
-      <section className="stack animate-enter">
-        <Banner tone="warn">
-          No hay proyecto activo.{' '}
-          <Link to="/proyectos">Crea uno en Proyectos</Link>.
+      <div className="page page--counter">
+        <Banner tone="info">
+          No hay ningún proyecto activo. Ve a{' '}
+          <Link to="/proyectos">Proyectos</Link> para crear o elegir uno.
         </Banner>
-      </section>
+      </div>
     )
   }
 
+  const currentStep = patternStepForRow(active, active.rows)
+  const nextPending = nextPendingPatternStep(active)
+  const progress = goalProgress(active)
+  const canUndo = active.history.length > 0
+  const gaugeText = formatGauge(active)
+
   return (
-    <>
-      <section
-        className="stack animate-enter"
-        aria-labelledby="counter-title"
-        hidden={fullscreen}
-      >
-        <div>
+    <div
+      className={`page page--counter ${
+        fullscreen ? 'page--counter-fullscreen' : ''
+      }`}
+    >
+      <LongSessionBanner project={active} onStop={stopTimer} />
+
+      <header className="page-header page-header--compact" hidden={fullscreen}>
+        <div className="page-header__main">
           <h1 id="counter-title" className="page-title">
             Contador
           </h1>
-          <p className="page-lead">
-            Proyecto: <strong>{active.name}</strong>. Un toque suma o resta 1;
-            mantén pulsado para ±5 y luego ±10.
-          </p>
-          {active.photoDataUrl ? (
-            <img
-              className="counter-photo"
-              src={active.photoDataUrl}
-              alt={`Foto de ${active.name}`}
-            />
-          ) : null}
-          {active.leaveNote.trim() ? (
-            <p className="leave-note-preview">
-              Dónde lo dejé: {active.leaveNote}
-            </p>
-          ) : null}
-          {active.notes.trim() ? (
-            <p className="project-notes-preview">{active.notes}</p>
-          ) : null}
-          {formatGauge(active) ? (
-            <p className="project-notes-preview">{formatGauge(active)}</p>
-          ) : null}
+          <p className="page-lead">{active.name}</p>
+          {gaugeText && <p className="page-meta">{gaugeText}</p>}
         </div>
-
-        <LongSessionBanner
-          project={active}
-          now={now}
-          onStop={stopTimer}
-        />
-
-        {goalHit && (
-          <Banner tone="success" role="alert">
-            <span>
-              Meta alcanzada: vuelta {active.rows} de {active.targetRows}.
-            </span>
-            <span className="banner__actions">
-              <BigButton
-                type="button"
-                variant="secondary"
-                onClick={onUndo}
-                disabled={active.history.length === 0}
-              >
-                Deshacer
-              </BigButton>
-              <BigButton
-                type="button"
-                variant="ghost"
-                onClick={() => setGoalHit(false)}
-              >
-                Entendido
-              </BigButton>
-            </span>
-          </Banner>
-        )}
-
-        {markerHit && (
-          <Banner tone="info" role="alert">
-            {markerHit}
-          </Banner>
-        )}
-
-        {locked && (
-          <Banner tone="warn" role="status">
-            Toques bloqueados. La sábana o un roce no sumarán vueltas.
-          </Banner>
-        )}
-
-        {(() => {
-          const thisStep = patternStepForRow(active)
-          const nextStep = nextPendingPatternStep(active)
-          const showNext =
-            nextStep && (!thisStep || nextStep.id !== thisStep.id)
-          if (!thisStep && !nextStep) return null
-          return (
-            <Banner tone="info">
-              <span>
-                {thisStep
-                  ? `Esta fila ${thisStep.row}${thisStep.done ? ' (hecha)' : ''}: ${thisStep.instruction}`
-                  : nextStep
-                    ? `Siguiente — fila ${nextStep.row}: ${nextStep.instruction}`
-                    : ''}
-                {thisStep && showNext && nextStep
-                  ? ` · Luego fila ${nextStep.row}: ${nextStep.instruction}`
-                  : ''}
-              </span>
-              <span className="banner__actions">
-                {thisStep && (
-                  <BigButton
-                    type="button"
-                    variant="secondary"
-                    onClick={() => togglePatternStep(thisStep.id)}
-                  >
-                    {thisStep.done ? 'Desmarcar' : 'Marcar hecha'}
-                  </BigButton>
-                )}
-                {canSpeak() && (thisStep || nextStep) && (
-                  <BigButton
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      const step = thisStep ?? nextStep
-                      if (!step) return
-                      if (speaking) {
-                        stopSpeaking()
-                        setSpeaking(false)
-                        return
-                      }
-                      speakText(patternStepToSpeech(step))
-                      setSpeaking(true)
-                    }}
-                  >
-                    {speaking ? 'Detener' : 'Leer paso'}
-                  </BigButton>
-                )}
-                <BigButton to="/patron" variant="ghost">
-                  Ver patrón
-                </BigButton>
-              </span>
-            </Banner>
-          )
-        })()}
-
-        <div className="timer-panel">
-          <h2 className="section-title">Sesión de tejido</h2>
-          <p className="timer-panel__time" aria-live="polite">
-            {active.timerStartedAt
-              ? formatDuration(
-                  Math.max(
-                    0,
-                    now - Date.parse(active.timerStartedAt),
-                  ),
-                )
-              : '0s'}
-            {active.timerStartedAt ? ' · en curso' : ' · parado'}
-          </p>
-          {(() => {
-            const goal = goalProgress(active)
-            if (!goal) return null
-            return (
-              <div className="goal-panel">
-                <p className="muted">
-                  Meta: vuelta {goal.current} de {goal.target}
-                  {goal.done
-                    ? ' · hecha'
-                    : ` · faltan ${goal.remaining}`}
-                </p>
-                <div
-                  className="goal-bar"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuenow={goal.current}
-                  aria-valuemax={goal.target}
-                  aria-label="Avance hacia la meta de vueltas"
-                >
-                  <span
-                    className="goal-bar__fill"
-                    style={{ width: `${Math.round(goal.ratio * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )
-          })()}
-          <p className="muted">
-            Hoy {formatDuration(sessionMsToday(active))} · total{' '}
-            {formatDuration(totalSessionMs(active))}
-          </p>
-          <div className="row-actions">
-            {!active.timerStartedAt ? (
-              <BigButton
-                type="button"
-                variant="primary"
-                onClick={startTimer}
-                disabled={locked}
-              >
-                Empezar tiempo
-              </BigButton>
-            ) : (
-              <BigButton
-                type="button"
-                variant="secondary"
-                onClick={stopTimer}
-                disabled={locked}
-              >
-                Pausar / guardar
-              </BigButton>
-            )}
-          </div>
-          <div className="field">
-            <label htmlFor={leaveNoteId}>Dónde lo dejé</label>
-            <textarea
-              id={leaveNoteId}
-              rows={2}
-              maxLength={MAX_LEAVE_NOTE}
-              value={active.leaveNote}
-              onChange={(e) =>
-                updateProject(active.id, {
-                  leaveNote: clipLeaveNote(e.target.value),
-                })
-              }
-              placeholder="Agujas al centro, 12 derechos…"
-            />
-            <p className="muted">
-              Sale al retomar. {active.leaveNote.length}/{MAX_LEAVE_NOTE}
-            </p>
-          </div>
-          {active.sessions.length > 0 && (
-            <SessionHistory
-              sessions={active.sessions}
-              showAll={showAllSessions}
-              onToggle={() => setShowAllSessions((v) => !v)}
-            />
-          )}
-        </div>
-
-        <div className="counter-grid">
-          <div className="counter-display">
-            <div className="counter-display__label" id="row-label">
-              Vuelta
-            </div>
-            <div
-              className={`counter-display__value${bump ? ' animate-bump' : ''}`}
-              aria-labelledby="row-label"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {active.rows}
-            </div>
-            <div className="counter-mini-actions">
-              <BigButton
-                variant="primary"
-                aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
-                disabled={locked}
-                {...rowHold}
-              >
-                +1 vuelta
-              </BigButton>
-              <BigButton
-                variant="secondary"
-                aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
-                disabled={locked || active.rows === 0}
-                {...rowHoldDown}
-              >
-                −1
-              </BigButton>
-            </div>
-          </div>
-
-          <div className="counter-display counter-display--secondary">
-            <div className="counter-display__label" id="stitch-label">
-              Punto en la vuelta
-            </div>
-            <div
-              className={`counter-display__value counter-display__value--sm${bump ? ' animate-bump' : ''}`}
-              aria-labelledby="stitch-label"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {active.stitches}
-            </div>
-            <div className="counter-mini-actions">
-              <BigButton
-                variant="secondary"
-                aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
-                disabled={locked}
-                {...stitchHold}
-              >
-                +1 punto
-              </BigButton>
-              <BigButton
-                variant="ghost"
-                aria-label="Restar puntos. Mantén pulsado para restar más rápido"
-                disabled={locked || active.stitches === 0}
-                {...stitchHoldDown}
-              >
-                −1
-              </BigButton>
-            </div>
-          </div>
-        </div>
-
-        <div className="counter-toolbar">
-          <BigButton
-            variant="secondary"
-            onClick={onUndo}
-            disabled={active.history.length === 0}
-            aria-label="Deshacer el último cambio del contador"
-          >
-            Deshacer
-          </BigButton>
-          <BigButton
-            variant={locked ? 'primary' : 'ghost'}
-            aria-pressed={locked}
-            onClick={() =>
-              updateProject(active.id, { tapsLocked: !active.tapsLocked })
+        <div className="counter-session-badge">
+          <button
+            type="button"
+            className={`timer-toggle-btn ${
+              active.timerStartedAt ? 'timer-toggle-btn--active' : ''
+            }`}
+            onClick={() => (active.timerStartedAt ? stopTimer() : startTimer())}
+            aria-label={
+              active.timerStartedAt
+                ? 'Pausar temporizador de sesión'
+                : 'Iniciar temporizador de sesión'
             }
           >
-            {locked ? 'Desbloquear toques' : 'Bloquear toques'}
-          </BigButton>
-          <BigButton
-            variant="secondary"
-            onClick={() => setFullscreen(true)}
-          >
-            Pantalla completa
-          </BigButton>
-        </div>
-
-        <div className="field">
-          <label htmlFor={markerId}>Avisar cada N vueltas (0 = no)</label>
-          <input
-            id={markerId}
-            type="number"
-            min={0}
-            max={999}
-            inputMode="numeric"
-            value={active.markerEvery}
-            onChange={(e) => {
-              const n = Number.parseInt(e.target.value, 10)
-              setMarkerEvery(Number.isFinite(n) ? n : 0)
-            }}
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor={targetId}>Meta de vueltas (0 = sin meta)</label>
-          <input
-            id={targetId}
-            type="number"
-            min={0}
-            max={9999}
-            inputMode="numeric"
-            value={active.targetRows}
-            onChange={(e) => {
-              const n = Number.parseInt(e.target.value, 10)
-              setTargetRows(Number.isFinite(n) ? n : 0)
-            }}
-          />
-        </div>
-
-        <div className="named-markers">
-          <h2 className="section-title">Marcadores con nombre</h2>
-          <p className="muted">
-            Avisa en una vuelta concreta (sisa, elástico, cierre…).
-          </p>
-          {active.namedMarkers.length > 0 && (
-            <ul className="named-markers__list">
-              {[...active.namedMarkers]
-                .sort((a, b) => a.row - b.row)
-                .map((m) => (
-                  <li key={m.id}>
-                    <span>
-                      Vuelta {m.row}: {m.label}
-                    </span>
-                    <BigButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => removeNamedMarker(m.id)}
-                    >
-                      Quitar
-                    </BigButton>
-                  </li>
-                ))}
-            </ul>
-          )}
-          <div className="field">
-            <label htmlFor={namedRowId}>Vuelta</label>
-            <input
-              id={namedRowId}
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={markerRow}
-              onChange={(e) => setMarkerRow(e.target.value)}
-              placeholder={String(active.rows || 1)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor={namedLabelId}>Nombre</label>
-            <input
-              id={namedLabelId}
-              value={markerLabel}
-              onChange={(e) => setMarkerLabel(e.target.value)}
-              placeholder="Sisa, elástico…"
-            />
-          </div>
-          <BigButton
+            {active.timerStartedAt ? '⏱ Tejiendo' : '▶ Iniciar sesión'}
+          </button>
+          <button
             type="button"
-            variant="secondary"
-            onClick={() => {
-              const n = Number.parseInt(markerRow, 10)
-              const row = Number.isFinite(n) ? n : active.rows
-              addNamedMarker(row, markerLabel)
-              setMarkerLabel('')
-            }}
-            disabled={!markerLabel.trim()}
+            className="ergo-trigger-btn"
+            onClick={() => setShowErgoModal(true)}
+            aria-label="Pausa ergonómica y estiramientos"
           >
-            Añadir marcador
-          </BigButton>
+            🧘 Pausa
+          </button>
+          <span className="timer-text">
+            {formatDuration(totalSessionMs(active))}
+            <small className="timer-subtext">
+              {' '}(hoy: {formatDuration(sessionMsToday(active, new Date(now)))})
+            </small>
+          </span>
         </div>
+      </header>
 
-        <fieldset className="alert-prefs">
-          <legend className="section-title">Avisos del marcador</legend>
-          <label className="backup-mode" htmlFor={soundId}>
+      {markerHit && (
+        <Banner tone="info">
+          <div className="banner__inline-wrap">
+            <span>{markerHit}</span>
+            <button
+              type="button"
+              className="banner-close-btn"
+              onClick={() => setMarkerHit(null)}
+              aria-label="Cerrar aviso de marcador"
+            >
+              ✕
+            </button>
+          </div>
+        </Banner>
+      )}
+
+      <CounterDisplay
+        rows={active.rows}
+        stitches={active.stitches}
+        bump={bump}
+        locked={locked}
+        fullscreen={fullscreen}
+        currentStep={currentStep}
+        onToggleFullscreen={() => setFullscreen((prev) => !prev)}
+      />
+
+      <CounterControls
+        locked={locked}
+        canUndo={canUndo}
+        rowHoldProps={rowHold}
+        rowHoldDownProps={rowHoldDown}
+        stitchHoldProps={stitchHold}
+        stitchHoldDownProps={stitchHoldDown}
+        onToggleLock={() =>
+          updateProject(active.id, { tapsLocked: !active.tapsLocked })
+        }
+        onUndo={undoLast}
+        onReset={() => {
+          if (window.confirm('¿Reiniciar vueltas y puntos a 0?')) {
+            resetCounters()
+          }
+        }}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
+
+      <CounterGoalProgress
+        progress={progress}
+        targetRows={active.targetRows}
+        goalHit={goalHit}
+        onSetTargetRows={setTargetRows}
+      />
+
+      <MotifRepeatCounter
+        project={active}
+        onUpdate={(patch) => updateProject(active.id, patch)}
+      />
+
+      <LeaveNoteEditor
+        note={active.leaveNote}
+        onSave={(note) => updateProject(active.id, { leaveNote: note })}
+      />
+
+      {active.photoDataUrl && (
+        <section className="counter-photo" aria-label="Foto del tejido">
+          <img
+            src={active.photoDataUrl}
+            alt={`Foto de ${active.name}`}
+            className="counter-photo__img"
+          />
+        </section>
+      )}
+
+      {nextPending && (
+        <section className="counter-next-step" aria-label="Siguiente paso">
+          <div className="counter-next-step__head">
+            <h3>Siguiente instrucción</h3>
+            {canSpeak() && (
+              <button
+                type="button"
+                className="step-speak-btn"
+                disabled={speaking}
+                onClick={() => {
+                  setSpeaking(true)
+                  speakText(patternStepToSpeech(nextPending))
+                  window.setTimeout(() => setSpeaking(false), 2000)
+                }}
+                aria-label="Leer siguiente paso en voz alta"
+              >
+                {speaking ? '🔊 Leyendo...' : '🗣 Escuchar'}
+              </button>
+            )}
+          </div>
+          <div className="counter-next-step__card">
+            <span className="step-badge">Fila {nextPending.row}</span>
+            <p className="step-text">{nextPending.instruction}</p>
+            <BigButton
+              type="button"
+              variant="secondary"
+              onClick={() => togglePatternStep(nextPending.id)}
+            >
+              ✓ Marcar como hecha
+            </BigButton>
+          </div>
+        </section>
+      )}
+
+      <NamedMarkersList
+        markers={active.namedMarkers}
+        currentRow={active.rows}
+        onAddMarker={addNamedMarker}
+        onRemoveMarker={removeNamedMarker}
+      />
+
+      <section className="counter-settings" aria-label="Avisos y accesibilidad">
+        <h3 className="section-title">Avisos y voz</h3>
+        <div className="settings-grid">
+          <div className="field-checkbox">
             <input
               id={soundId}
               type="checkbox"
               checked={alerts.sound}
               onChange={(e) => setAlertSound(e.target.checked)}
             />
-            Sonido (suave)
-          </label>
-          <label className="backup-mode" htmlFor={vibeId}>
+            <label htmlFor={soundId}>Sonido suave al llegar a marcas/meta</label>
+          </div>
+
+          <div className="field-checkbox">
             <input
               id={vibeId}
               type="checkbox"
               checked={alerts.vibrate}
               onChange={(e) => setAlertVibrate(e.target.checked)}
             />
-            Vibración (si el móvil la permite)
-          </label>
+            <label htmlFor={vibeId}>Vibración breve al sumar</label>
+          </div>
+
           {canSpeak() && (
-            <label className="backup-mode" htmlFor={speakId}>
+            <div className="field-checkbox">
               <input
                 id={speakId}
                 type="checkbox"
                 checked={alerts.speakStep}
                 onChange={(e) => setSpeakStep(e.target.checked)}
               />
-              Leer el siguiente paso al completar una vuelta
-            </label>
+              <label htmlFor={speakId}>
+                Leer la instrucción al avanzar de vuelta
+              </label>
+            </div>
           )}
-        </fieldset>
 
-        <BigButton
-          variant="ghost"
-          block
-          onClick={() => {
-            if (
-              !window.confirm(
-                '¿Poner vueltas y puntos a 0? Puedes deshacer después si te arrepientes.',
-              )
-            ) {
-              return
-            }
-            resetCounters()
-            triggerBump()
-          }}
-          disabled={locked || (active.rows === 0 && active.stitches === 0)}
-          aria-label="Reiniciar contadores"
-        >
-          Reiniciar vueltas y puntos
-        </BigButton>
-
-        <div className="history">
-          <h2 className="section-title">Historial reciente</h2>
-          {active.history.length === 0 ? (
-            <p className="muted">Aún no hay movimientos registrados.</p>
-          ) : (
-            <ol className="history__list">
-              {active.history.slice(0, 12).map((h) => (
-                <li key={`${h.at}-${h.rows}-${h.stitches}`}>
-                  <span>{formatRelativeDate(h.at)}</span>
-                  <span>
-                    Vuelta {h.rows} · Punto {h.stitches}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
+          <div className="field">
+            <label htmlFor={markerId}>Aviso automático cada N vueltas:</label>
+            <input
+              id={markerId}
+              type="number"
+              min="0"
+              max="500"
+              value={active.markerEvery > 0 ? String(active.markerEvery) : ''}
+              onChange={(e) => {
+                const n = Number.parseInt(e.target.value, 10)
+                setMarkerEvery(Number.isFinite(n) && n > 0 ? n : 0)
+              }}
+              placeholder="0 (desactivado)"
+            />
+          </div>
         </div>
-
-      <BigButton to="/proyectos" variant="secondary" block>
-          Cambiar de proyecto
-      </BigButton>
-      <BigButton to="/patron" variant="ghost" block>
-          Patrón por filas
-      </BigButton>
       </section>
 
-      {fullscreen && (
-        <div
-          className={`counter-fs${locked ? ' counter-fs--locked' : ''}`}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Contador a pantalla completa"
-        >
-          <p className="counter-fs__project">{active.name}</p>
-          {active.photoDataUrl ? (
-            <img
-              className="counter-fs__photo"
-              src={active.photoDataUrl}
-              alt={`Foto de ${active.name}`}
-            />
-          ) : null}
-          {(() => {
-            const thisStep = patternStepForRow(active)
-            const nextStep = nextPendingPatternStep(active)
-            if (!thisStep && !nextStep) return null
-            return (
-              <p className="counter-fs__step">
-                {thisStep
-                  ? `Fila ${thisStep.row}${thisStep.done ? ' hecha' : ''}: ${thisStep.instruction}`
-                  : `Siguiente — fila ${nextStep?.row}: ${nextStep?.instruction}`}
-              </p>
-            )
-          })()}
-          {active.leaveNote.trim() ? (
-            <p className="counter-fs__leave">Dónde lo dejé: {active.leaveNote}</p>
-          ) : null}
-          {(() => {
-            const goal = goalProgress(active)
-            if (!goal) return null
-            return (
-              <p className="muted" style={{ textAlign: 'center' }}>
-                {goal.current} de {goal.target}
-                {goal.done ? ' · meta hecha' : ''}
-              </p>
-            )
-          })()}
-          {goalHit && (
-            <p className="counter-fs__goal" role="alert">
-              Meta alcanzada: {active.rows} de {active.targetRows}
-            </p>
-          )}
-          {markerHit && (
-            <p className="counter-fs__marker" role="alert">
-              {markerHit}
-            </p>
-          )}
-          <div className="counter-fs__grid">
-            <div>
-              <div className="counter-fs__label">Vuelta</div>
-              <div
-                className={`counter-fs__value${bump ? ' animate-bump' : ''}`}
-                aria-live="polite"
-              >
-                {active.rows}
-              </div>
-              <div className="counter-fs__actions">
-                <button
-                  type="button"
-                  className="counter-fs__btn counter-fs__btn--primary"
-                  aria-label="Sumar vueltas. Mantén pulsado para sumar más rápido"
-                  disabled={locked}
-                  {...rowHold}
-                >
-                  +1 vuelta
-                </button>
-                <button
-                  type="button"
-                  className="counter-fs__btn"
-                  aria-label="Restar vueltas. Mantén pulsado para restar más rápido"
-                  disabled={locked || active.rows === 0}
-                  {...rowHoldDown}
-                >
-                  −1
-                </button>
-              </div>
-            </div>
-            <div>
-              <div className="counter-fs__label">Punto</div>
-              <div
-                className={`counter-fs__value counter-fs__value--sm${bump ? ' animate-bump' : ''}`}
-                aria-live="polite"
-              >
-                {active.stitches}
-              </div>
-              <div className="counter-fs__actions">
-                <button
-                  type="button"
-                  className="counter-fs__btn counter-fs__btn--primary"
-                  aria-label="Sumar puntos. Mantén pulsado para sumar más rápido"
-                  disabled={locked}
-                  {...stitchHold}
-                >
-                  +1 punto
-                </button>
-                <button
-                  type="button"
-                  className="counter-fs__btn"
-                  aria-label="Restar puntos. Mantén pulsado para restar más rápido"
-                  disabled={locked || active.stitches === 0}
-                  {...stitchHoldDown}
-                >
-                  −1
-                </button>
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="counter-fs__close"
-            onClick={onUndo}
-            disabled={active.history.length === 0}
-          >
-            Deshacer último toque
-          </button>
-          <button
-            type="button"
-            className={`counter-fs__close${locked ? ' counter-fs__close--lock' : ''}`}
-            aria-pressed={locked}
-            onClick={() =>
-              updateProject(active.id, { tapsLocked: !active.tapsLocked })
-            }
-          >
-            {locked ? 'Desbloquear toques' : 'Bloquear toques'}
-          </button>
-          <button
-            type="button"
-            className="counter-fs__close"
-            onClick={() => setFullscreen(false)}
-          >
-            Cerrar pantalla completa
-          </button>
-        </div>
+      {active.sessions.length > 0 && (
+        <section className="counter-history-section" aria-label="Historial de sesiones">
+          <h3 className="section-title">Historial de sesiones</h3>
+          <SessionHistoryView
+            sessions={active.sessions}
+            showAll={showAllSessions}
+            onToggleShowAll={() => setShowAllSessions((prev) => !prev)}
+          />
+        </section>
       )}
-    </>
+
+      <footer className="counter-footer">
+        <p className="last-saved">
+          Última actualización: {formatRelativeDate(active.updatedAt)}
+        </p>
+      </footer>
+
+      <KeyboardShortcutsModal
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
+
+      <ErgonomicsModal
+        isOpen={showErgoModal}
+        sessionMinutes={activeSessionMinutes}
+        onClose={() => setShowErgoModal(false)}
+        onRestCompleted={() => {
+          lastErgoAlert.current = Date.now()
+        }}
+      />
+    </div>
   )
 }

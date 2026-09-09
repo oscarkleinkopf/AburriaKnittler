@@ -1,12 +1,15 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import { ImagePrepPanel } from '../components/ImagePrepPanel'
+import { AnalyzeActionsBar } from '../components/analyze/AnalyzeActionsBar'
+import { AnalyzeEditModal } from '../components/analyze/AnalyzeEditModal'
+import { AnalyzeResultCard } from '../components/analyze/AnalyzeResultCard'
+import { ScaleCalibrationPanel } from '../components/analyze/ScaleCalibrationPanel'
 import {
   analyzeGarmentPhoto,
   hasGeminiKey,
-  isLocalAnalysis,
   LOCAL_ANALYSIS_NOTICE,
   type AnalyzeResult,
 } from '../lib/analyze'
@@ -22,7 +25,6 @@ import {
 } from '../lib/projects'
 import {
   analysisToSpeech,
-  canSpeak,
   speakText,
   stopSpeaking,
 } from '../lib/speech'
@@ -68,17 +70,12 @@ export function AnalyzePage() {
     applyAnalysisToCounters,
     setTargetRows,
     addPatternSteps,
+    updateProject,
   } = useProjects()
   const online = useOnline()
   const gemini = hasGeminiKey()
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const stitchesId = useId()
-  const rowsId = useId()
-  const stitchTypeId = useId()
-  const structureId = useId()
-  const confidenceId = useId()
-  const notesId = useId()
   const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [prep, setPrep] = useState<PrepState | null>(null)
@@ -89,7 +86,6 @@ export function AnalyzePage() {
     () => active?.lastAnalysis ?? null,
   )
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState<AnalyzeResult>(emptyDraft)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [speaking, setSpeaking] = useState(false)
 
@@ -143,221 +139,148 @@ export function AnalyzePage() {
     })
   }
 
-  useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview)
-      if (prep?.sourceUrl) URL.revokeObjectURL(prep.sourceUrl)
-    }
-  }, [preview, prep?.sourceUrl])
-
-  async function applyPrep() {
+  async function onApplyPrep() {
     if (!prep) return
     setPrepBusy(true)
     setError(null)
     try {
-      const prepared = await renderPreparedImage(prep)
+      const cropped = await renderPreparedImage(prep)
       clearPreview()
-      setFile(prepared)
-      setPreview(URL.createObjectURL(prepared))
       clearPrepSource()
-      setSaveMsg('Foto lista. Ya puedes obtener la estimación.')
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo preparar la foto.',
-      )
+      setFile(cropped)
+      setPreview(URL.createObjectURL(cropped))
+    } catch {
+      setError('No se pudo preparar la imagen para el análisis.')
     } finally {
       setPrepBusy(false)
     }
   }
 
-  async function analyze() {
+  function onCancelPrep() {
+    resetPhoto()
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  async function onAnalyze() {
     if (!file) return
-    if (!online && gemini) return
     setStatus('loading')
     setError(null)
-    setResult(null)
-    setEditing(false)
     setSaveMsg(null)
+    stopSpeaking()
+    setSpeaking(false)
     try {
-      const data = await analyzeGarmentPhoto(file)
-      setResult(data)
+      const r = await analyzeGarmentPhoto(file)
+      setResult(r)
       setStatus('done')
-      if (active) {
-        saveAnalysis(data)
-        try {
-          if (collectPhotos(active).length < MAX_PHOTOS) {
-            const thumb = await compressImageFile(file)
-            addPhoto(thumb)
-            const save = getLastSaveResult()
-            if (!save.ok && save.reason === 'quota') {
-              removePhoto(thumb)
-              setSaveMsg(
-                'Estimación guardada. La foto no cupo; quita otra o exporta un respaldo.',
-              )
-            }
-          }
-        } catch {
-          // photo optional
-        }
-      }
+      if (active) saveAnalysis(r)
     } catch (err) {
       setStatus('error')
       setError(
         err instanceof Error
           ? err.message
-          : 'No se pudo analizar la foto. Inténtalo de nuevo.',
+          : 'No se pudo completar el análisis.',
       )
     }
   }
 
-  function startEdit() {
-    setDraft(result ?? emptyDraft())
-    setEditing(true)
-    setSaveMsg(null)
+  function handleSpeak() {
+    if (!result) return
+    setSpeaking(true)
+    speakText(analysisToSpeech(result))
+    window.setTimeout(() => setSpeaking(false), 2000)
   }
 
-  function startBlank() {
-    setDraft(emptyDraft())
-    setEditing(true)
-    setStatus('done')
-    setSaveMsg(null)
-  }
-
-  function saveEdit(e: FormEvent) {
-    e.preventDefault()
-    const next: AnalyzeResult = {
-      estimatedStitches:
-        draft.estimatedStitches == null || Number.isNaN(draft.estimatedStitches)
-          ? null
-          : Math.max(0, Math.round(draft.estimatedStitches)),
-      estimatedRows:
-        draft.estimatedRows == null || Number.isNaN(draft.estimatedRows)
-          ? null
-          : Math.max(0, Math.round(draft.estimatedRows)),
-      stitchType: draft.stitchType.trim() || 'No determinado',
-      patternStructure: draft.patternStructure.trim() || 'No determinado',
-      confidence: draft.confidence.trim() || 'media',
-      notes: draft.notes.trim(),
-    }
-    setResult(next)
+  function handleSaveEdit(updated: AnalyzeResult) {
+    setResult(updated)
     setEditing(false)
-    setStatus('done')
-    if (active) {
-      saveAnalysis(next)
-      setSaveMsg('Corrección guardada en el proyecto.')
-    } else {
-      setSaveMsg('Corrección aplicada en esta pantalla.')
+    if (active) saveAnalysis(updated)
+    setSaveMsg('Corrección guardada en el proyecto.')
+  }
+
+  async function handleSavePhotoToGallery() {
+    if (!file || !active) return
+    try {
+      const dataUrl = await compressImageFile(file)
+      const added = addPhoto(dataUrl)
+      if (!added) {
+        setSaveMsg(`Máximo de ${MAX_PHOTOS} fotos alcanzado.`)
+        return
+      }
+      const save = getLastSaveResult()
+      if (!save.ok) {
+        removePhoto(dataUrl)
+        setSaveMsg('No hay suficiente espacio para guardar la foto.')
+        return
+      }
+      setSaveMsg('Foto guardada en la galería del proyecto.')
+    } catch {
+      setSaveMsg('No se pudo guardar la foto.')
     }
   }
 
-  function applyToCounter() {
-    if (!active || !result || !analysisHasCounters(result)) return
-    const nextRows = result.estimatedRows ?? active.rows
-    const nextStitches = result.estimatedStitches ?? active.stitches
-    if (active.rows === nextRows && active.stitches === nextStitches) {
-      setSaveMsg('El contador ya tiene esos números.')
-      return
-    }
-    if (active.rows > 0 || active.stitches > 0) {
-      const ok = window.confirm(
-        `El contador está en vuelta ${active.rows}, punto ${active.stitches}. ¿Ponerlo a vuelta ${nextRows}, punto ${nextStitches}?`,
-      )
-      if (!ok) return
-    }
+  function handleApplyToCounters() {
+    if (!result) return
     applyAnalysisToCounters(result)
     setSaveMsg(
-      `Contador actualizado: vuelta ${nextRows} · punto ${nextStitches}.`,
+      `Valores aplicados: ${result.estimatedRows ?? 0} vueltas y ${
+        result.estimatedStitches ?? 0
+      } puntos en el contador.`,
     )
   }
 
-  function applyAsGoal() {
-    if (!active || !result || result.estimatedRows == null) return
-    const n = Math.max(0, Math.round(result.estimatedRows))
-    if (n <= 0) {
-      setSaveMsg('Las filas estimadas no sirven como meta.')
-      return
-    }
-    if (active.targetRows === n) {
-      setSaveMsg(`La meta ya es ${n} vueltas.`)
-      return
-    }
-    setTargetRows(n)
-    setSaveMsg(`Meta del contador: ${n} vueltas.`)
+  function handleSetTarget() {
+    if (!result?.estimatedRows) return
+    setTargetRows(result.estimatedRows)
+    setSaveMsg(`Meta fijada en ${result.estimatedRows} vueltas.`)
   }
 
-  function applyStructureAsPattern() {
-    if (!active || !result) return
-    const start = Math.max(1, active.rows || 1)
+  function handleConvertToPattern() {
+    if (!result?.patternStructure) return
+    const start = (active?.rows ?? 0) + 1
     const steps = structureToPatternSteps(result.patternStructure, start)
     if (steps.length === 0) {
-      setSaveMsg(
-        'No pude sacar filas de la estructura. Escríbela con una por línea o pégala en Patrón.',
-      )
+      setSaveMsg('No se encontraron instrucciones claras en la estructura.')
       return
     }
-    if (active.patternSteps.length > 0) {
-      const ok = window.confirm(
-        `El patrón ya tiene ${active.patternSteps.length} pasos. ¿Añadir ${steps.length} más desde el análisis?`,
-      )
-      if (!ok) return
-    }
     addPatternSteps(steps)
-    setSaveMsg(
-      `Añadidas ${steps.length} instrucciones al patrón (desde la fila ${steps[0].row}).`,
+    setSaveMsg(`Añadidas ${steps.length} instrucciones al patrón por filas.`)
+  }
+
+  if (!active) {
+    return (
+      <div className="page page--analyze">
+        <Banner tone="info">
+          No hay ningún proyecto activo. Ve a{' '}
+          <Link to="/proyectos">Proyectos</Link> para crear o elegir uno antes
+          de analizar fotos.
+        </Banner>
+      </div>
     )
   }
 
-  function toggleSpeak() {
-    if (!result) return
-    if (speaking) {
-      stopSpeaking()
-      setSpeaking(false)
-      return
-    }
-    const text = analysisToSpeech(result)
-    speakText(text)
-    setSpeaking(true)
-    const check = window.setInterval(() => {
-      if (!window.speechSynthesis.speaking) {
-        setSpeaking(false)
-        window.clearInterval(check)
-      }
-    }, 400)
-  }
-
-  const needsNetwork = gemini
-  const showResults = (result && status === 'done') || editing
+  const activePhotos = collectPhotos(active)
+  const hasCounters = result ? analysisHasCounters(result) : false
+  const hasStructure = Boolean(result?.patternStructure && result.patternStructure !== 'No determinado')
 
   return (
-    <section className="stack animate-enter" aria-labelledby="analyze-title">
-      <div>
-        <h1 id="analyze-title" className="page-title">
-          Analizar tejido
-        </h1>
+    <div className="page page--analyze">
+      <header className="page-header">
+        <h1 className="page-title">Analizar tejido</h1>
         <p className="page-lead">
-          {active ? (
-            <>
-              Proyecto activo: <strong>{active.name}</strong>. Puedes corregir
-              el resultado a mano y se guarda en el proyecto.
-            </>
-          ) : (
-            <>
-              Sube una imagen (galería, archivos o cámara) o escribe el conteo a
-              mano. <Link to="/proyectos">Crea un proyecto</Link> para
-              guardarlo.
-            </>
-          )}
+          Sube una foto clara de tu muestra o labor para estimar puntos, filas y tipo de puntada.
         </p>
-      </div>
+      </header>
 
       {!gemini && (
         <Banner tone="warn" role="status">
           <span>{LOCAL_ANALYSIS_NOTICE}</span>
           {!editing && (
             <span className="banner__actions">
-              <BigButton type="button" variant="primary" onClick={startBlank}>
+              <BigButton
+                type="button"
+                variant="primary"
+                onClick={() => setEditing(true)}
+              >
                 Escribir a mano
               </BigButton>
             </span>
@@ -365,302 +288,136 @@ export function AnalyzePage() {
         </Banner>
       )}
 
-      {!online && needsNetwork && (
-        <Banner tone="warn" role="alert">
-          Sin conexión: el análisis con IA necesita internet. El contador de
-          vueltas sí funciona sin red.
+      {saveMsg && (
+        <Banner tone="success">
+          <div className="banner__inline-wrap">
+            <span>{saveMsg}</span>
+            <button
+              type="button"
+              className="banner-close-btn"
+              onClick={() => setSaveMsg(null)}
+              aria-label="Cerrar aviso"
+            >
+              ✕
+            </button>
+          </div>
         </Banner>
-      )}
-
-      <div className="file-pick">
-        <label htmlFor={inputId} className="sr-only">
-          Elegir imagen del tejido (galería, archivos o cámara)
-        </label>
-        <input
-          id={inputId}
-          ref={inputRef}
-          className="file-pick__input"
-          type="file"
-          accept="image/*"
-          onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-        />
-        <BigButton
-          variant="secondary"
-          block
-          onClick={() => inputRef.current?.click()}
-          disabled={prepBusy || status === 'loading'}
-        >
-          {file || prep ? 'Cambiar imagen' : 'Elegir imagen'}
-        </BigButton>
-      </div>
-
-      {prep && (
-        <ImagePrepPanel
-          prep={prep}
-          onChange={setPrep}
-          onApply={() => void applyPrep()}
-          onReset={resetPhoto}
-          busy={prepBusy}
-        />
-      )}
-
-      {preview && !prep && (
-        <img
-          className="file-pick__preview"
-          src={preview}
-          alt="Vista previa del tejido seleccionado"
-        />
-      )}
-
-      {gemini ? (
-        <BigButton
-          variant="primary"
-          block
-          disabled={
-            !file || !!prep || status === 'loading' || (!online && needsNetwork)
-          }
-          onClick={analyze}
-        >
-          {status === 'loading' ? 'Analizando…' : 'Obtener estimación'}
-        </BigButton>
-      ) : (
-        <>
-          {!result && !editing && (
-            <BigButton variant="primary" block onClick={startBlank}>
-              Escribir conteo a mano
-            </BigButton>
-          )}
-          <BigButton
-            variant="ghost"
-            block
-            disabled={!file || !!prep || status === 'loading'}
-            onClick={analyze}
-          >
-            {status === 'loading'
-              ? 'Estimando…'
-              : 'Estimar igual con la foto (poco preciso)'}
-          </BigButton>
-        </>
-      )}
-
-      {gemini && !result && !editing && (
-        <BigButton variant="ghost" block onClick={startBlank}>
-          Escribir conteo a mano
-        </BigButton>
       )}
 
       {error && (
-        <Banner tone="error" role="alert">
-          {error}
+        <Banner tone="error">
+          <div className="banner__inline-wrap">
+            <span>{error}</span>
+            <button
+              type="button"
+              className="banner-close-btn"
+              onClick={() => setError(null)}
+              aria-label="Cerrar error"
+            >
+              ✕
+            </button>
+          </div>
         </Banner>
       )}
 
-      {saveMsg && (
-        <Banner tone="info">
-          {saveMsg}
-          {saveMsg.startsWith('Contador actualizado') && (
-            <span className="banner__actions">
-              <BigButton to="/contador" variant="secondary">
-                Ir al contador
-              </BigButton>
-            </span>
-          )}
-        </Banner>
-      )}
+      <section className="analyze-upload-section">
+        {!result && !editing && (
+          <div className="analyze-manual-entry">
+            <BigButton
+              type="button"
+              variant="secondary"
+              onClick={() => setEditing(true)}
+            >
+              Escribir conteo a mano
+            </BigButton>
+          </div>
+        )}
 
-      {showResults && (
-        <div className="results" aria-live="polite">
-          {!editing && result && (
-            <>
-              <Banner tone={isLocalAnalysis(result) ? 'warn' : 'info'}>
-                {isLocalAnalysis(result)
-                  ? 'Esta cifra sale del tamaño de la foto, no del punto. Corrígelo a mano antes de usarla.'
-                  : 'Esto es una estimación orientativa; puedes corregirla.'}
-                {active ? ' Se guarda en el proyecto activo.' : ''}
-              </Banner>
-              <div className="results__item">
-                <span className="results__label">Puntos (aprox.)</span>
-                <span className="results__value">
-                  {result.estimatedStitches ?? 'No determinado'}
-                </span>
-              </div>
-              <div className="results__item">
-                <span className="results__label">Filas (aprox.)</span>
-                <span className="results__value">
-                  {result.estimatedRows ?? 'No determinado'}
-                </span>
-              </div>
-              <div className="results__item">
-                <span className="results__label">Tipo de puntada</span>
-                <span className="results__value">{result.stitchType}</span>
-              </div>
-              <div className="results__item">
-                <span className="results__label">Estructura del patrón</span>
-                <span className="results__value">{result.patternStructure}</span>
-              </div>
-              <div className="results__item">
-                <span className="results__label">Confianza</span>
-                <span className="results__value">{result.confidence}</span>
-              </div>
-              {result.notes && (
-                <div className="results__item">
-                  <span className="results__label">Notas</span>
-                  <span className="results__value">{result.notes}</span>
-                </div>
-              )}
-              <div className="row-actions">
-                {active && analysisHasCounters(result) && (
-                  <BigButton
-                    type="button"
-                    variant="primary"
-                    onClick={applyToCounter}
-                  >
-                    Usar en el contador
-                  </BigButton>
-                )}
-                {active && result.estimatedRows != null && (
-                  <BigButton
-                    type="button"
-                    variant="secondary"
-                    onClick={applyAsGoal}
-                  >
-                    Usar como meta
-                  </BigButton>
-                )}
-                {active &&
-                  structureToPatternSteps(result.patternStructure).length >
-                    0 && (
-                    <BigButton
-                      type="button"
-                      variant="secondary"
-                      onClick={applyStructureAsPattern}
-                    >
-                      Usar como patrón
-                    </BigButton>
-                  )}
-                <BigButton type="button" variant="secondary" onClick={startEdit}>
-                  Corregir a mano
-                </BigButton>
-                {canSpeak() && (
-                  <BigButton
-                    type="button"
-                    variant="ghost"
-                    onClick={toggleSpeak}
-                  >
-                    {speaking ? 'Detener lectura' : 'Leer en voz alta'}
-                  </BigButton>
-                )}
-              </div>
-            </>
-          )}
-
-          {editing && (
-            <form className="stack" onSubmit={saveEdit}>
-              <h2 className="section-title">Corregir resultado</h2>
-              <div className="field">
-                <label htmlFor={stitchesId}>Puntos</label>
-                <input
-                  id={stitchesId}
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={draft.estimatedStitches ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setDraft((d) => ({
-                      ...d,
-                      estimatedStitches:
-                        v === '' ? null : Number.parseInt(v, 10),
-                    }))
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor={rowsId}>Filas</label>
-                <input
-                  id={rowsId}
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={draft.estimatedRows ?? ''}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setDraft((d) => ({
-                      ...d,
-                      estimatedRows: v === '' ? null : Number.parseInt(v, 10),
-                    }))
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor={stitchTypeId}>Tipo de puntada</label>
-                <input
-                  id={stitchTypeId}
-                  value={draft.stitchType}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, stitchType: e.target.value }))
-                  }
-                  placeholder="Jersey, musgo, elástico…"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor={structureId}>Estructura del patrón</label>
-                <textarea
-                  id={structureId}
-                  rows={2}
-                  value={draft.patternStructure}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      patternStructure: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="field">
-                <label htmlFor={confidenceId}>Confianza</label>
-                <select
-                  id={confidenceId}
-                  value={draft.confidence}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, confidence: e.target.value }))
-                  }
-                >
-                  <option value="baja">baja</option>
-                  <option value="media">media</option>
-                  <option value="alta">alta</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor={notesId}>Notas</label>
-                <textarea
-                  id={notesId}
-                  rows={2}
-                  value={draft.notes}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, notes: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="row-actions">
-                <BigButton type="submit" variant="primary">
-                  Guardar corrección
-                </BigButton>
-                <BigButton
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(false)
-                    if (!result) setStatus('idle')
-                  }}
-                >
-                  Cancelar
-                </BigButton>
-              </div>
-            </form>
-          )}
+        <div className="field">
+          <label htmlFor={inputId} className="field-label-bold">
+            Seleccionar foto del tejido:
+          </label>
+          <input
+            id={inputId}
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+          />
         </div>
+
+        {prep && (
+          <ImagePrepPanel
+            prep={prep}
+            busy={prepBusy}
+            onChange={setPrep}
+            onApply={onApplyPrep}
+            onReset={onCancelPrep}
+          />
+        )}
+
+        {preview && !prep && (
+          <div className="analyze-preview-box">
+            <img src={preview} alt="Vista previa del tejido recortado" className="analyze-preview-img" />
+            <div className="analyze-preview-actions">
+              <BigButton
+                type="button"
+                variant="primary"
+                onClick={onAnalyze}
+                disabled={status === 'loading' || (gemini && !online)}
+              >
+                {status === 'loading' ? 'Analizando imagen...' : '🔍 Analizar esta foto'}
+              </BigButton>
+              <BigButton type="button" variant="ghost" onClick={resetPhoto}>
+                Cambiar foto
+              </BigButton>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {result && (
+        <section className="analyze-results-section">
+          <h2 className="section-title">Estimación del tejido</h2>
+          <AnalyzeResultCard
+            result={result}
+            speaking={speaking}
+            onSpeak={handleSpeak}
+            onEdit={() => setEditing(true)}
+            onOpenHandEntry={() => setEditing(true)}
+          />
+
+          <ScaleCalibrationPanel
+            result={result}
+            onSaveGauge={(gauge) => {
+              if (active) {
+                updateProject(active.id, gauge)
+                setSaveMsg(`Muestra guardada: 10 cm = ${gauge.gaugeStitches} pts × ${gauge.gaugeRows} filas.`)
+              }
+            }}
+          />
+
+          <AnalyzeActionsBar
+            result={result}
+            hasCounters={hasCounters}
+            hasStructure={hasStructure}
+            hasPhotoToSave={Boolean(file)}
+            photoCount={activePhotos.length}
+            onApplyToCounters={handleApplyToCounters}
+            onSetTarget={handleSetTarget}
+            onConvertToPattern={handleConvertToPattern}
+            onSaveToGallery={handleSavePhotoToGallery}
+          />
+        </section>
       )}
-    </section>
+
+      {editing && (
+        <AnalyzeEditModal
+          initialData={result ?? emptyDraft()}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+    </div>
   )
 }

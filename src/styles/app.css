@@ -1154,3 +1154,1088 @@
     margin: 0;
   }
 }
+
+/* ==========================================================================
+   Estilos de Componentes Modulares y Accesibilidad
+   ========================================================================== */
+
+/* Modal y diálogos */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 100;
+  animation: fadeIn 0.2s var(--ease);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  background: var(--color-bg);
+  border: 2px solid var(--color-line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  width: min(540px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scaleUp 0.2s var(--ease);
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-header);
+}
+
+.modal-card__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--color-brand-deep);
+}
+
+.modal-card__close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+}
+
+.modal-card__close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-ink);
+}
+
+.modal-card__body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.modal-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-header);
+}
+
+/* Lista de atajos de teclado */
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.shortcuts-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+.shortcuts-list__key {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: var(--color-brand-deep);
+  color: var(--color-on-brand);
+  border-radius: var(--radius);
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.shortcuts-list__desc {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* Estadísticas de Proyectos */
+.project-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.project-stats__item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.project-stats__num {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--color-brand-deep);
+  line-height: 1;
+}
+
+.project-stats__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-transform: lowercase;
+}
+
+.project-stats__item--muted .project-stats__num {
+  color: var(--color-ink-muted);
+}
+
+/* Barra de Filtros y Búsqueda */
+.project-filters-bar {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.project-filters-bar__top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+@media (min-width: 540px) {
+  .project-filters-bar__top {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.filter-chip {
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-input);
+  color: var(--color-ink-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+
+.filter-chip:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-deep);
+}
+
+.filter-chip--active {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-color: var(--color-brand-deep);
+}
+
+/* Tarjetas de Proyecto */
+.projects-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.project-card {
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.project-card:hover {
+  border-color: var(--color-brand-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.project-card--active {
+  border-color: var(--color-brand);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.project-card--archived {
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.project-card__top {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.project-card__cover {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  border: 1px solid var(--color-line-strong);
+  flex-shrink: 0;
+}
+
+.project-card__main-info {
+  flex: 1;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.project-card__title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.project-card__active-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font-weight: 700;
+}
+
+.project-card__archived-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-ink-muted);
+  color: #fff;
+  font-weight: 700;
+}
+
+.project-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 0.95rem;
+  color: var(--color-ink-muted);
+}
+
+.project-card__count strong {
+  color: var(--color-ink);
+}
+
+.project-card__pattern-tag,
+.project-card__target-tag {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius);
+  background: rgba(47, 93, 74, 0.1);
+  color: var(--color-brand-deep);
+  font-weight: 600;
+}
+
+.project-card__gauge {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-ink-muted);
+}
+
+.project-card__notes {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.project-card__leave-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-accent);
+}
+
+.project-card__date {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+}
+
+.project-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Galería de fotos del proyecto */
+.project-gallery {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.project-gallery__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-gallery__title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-brand-deep);
+}
+
+.project-gallery__add-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--color-brand);
+  background: transparent;
+  color: var(--color-brand-deep);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.project-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+}
+
+.gallery-card {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  aspect-ratio: 1;
+}
+
+.gallery-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-1);
+  transition: opacity 0.2s ease;
+}
+
+.gallery-card:hover .gallery-card__overlay,
+.gallery-card:focus-within .gallery-card__overlay {
+  opacity: 1;
+}
+
+.gallery-card__cover-badge {
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  align-self: flex-start;
+}
+
+.gallery-card__cover-btn,
+.gallery-card__del-btn {
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.gallery-card__del-btn {
+  align-self: flex-end;
+}
+
+/* Barra de progreso de patrón */
+.pattern-progress {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.pattern-progress__bar-wrap {
+  height: 0.75rem;
+  background: var(--color-input);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.pattern-progress__bar {
+  height: 100%;
+  background: var(--color-brand);
+  border-radius: 999px;
+  transition: width 0.3s var(--ease);
+}
+
+.pattern-progress__stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--color-ink-muted);
+}
+
+/* Filtro de patrón */
+.pattern-filter-bar {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.pattern-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Pasos del patrón */
+.pattern-steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.pattern-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  transition: background 0.15s ease;
+}
+
+.pattern-step--current {
+  border-left: 4px solid var(--color-accent);
+  background: rgba(196, 92, 38, 0.05);
+}
+
+.pattern-step--done {
+  opacity: 0.7;
+}
+
+.pattern-step--done .pattern-step__text {
+  text-decoration: line-through;
+}
+
+.pattern-step__check-wrap input[type="checkbox"] {
+  width: 1.3rem;
+  height: 1.3rem;
+  cursor: pointer;
+}
+
+.pattern-step__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pattern-step__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  flex: 1;
+}
+
+.pattern-step__row-badge {
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.45rem;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-radius: var(--radius);
+}
+
+.pattern-step__text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.pattern-step__current-indicator {
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.pattern-step__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.step-icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.25rem 0.45rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: var(--color-ink-muted);
+}
+
+.step-icon-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-ink);
+}
+
+.step-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.step-icon-btn--danger:hover:not(:disabled) {
+  color: var(--color-danger);
+}
+
+/* Tarjeta y métricas de Análisis */
+.analyze-result-card {
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.analyze-result-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.confidence-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+.confidence-badge--alta {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.confidence-badge--media {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.confidence-badge--baja {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.local-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(47, 93, 74, 0.12);
+  color: var(--color-brand-deep);
+  margin-left: var(--space-1);
+}
+
+.analyze-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.analyze-metric {
+  background: var(--color-input);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.analyze-metric__num {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-brand-deep);
+  line-height: 1;
+}
+
+.analyze-metric__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.analyze-details {
+  display: grid;
+  gap: var(--space-2);
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.analyze-actions-grid {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* ==========================================================================
+   Nuevas Funcionalidades: Calculadora, Motivos, Ergonomía, Ficha y Escala
+   ========================================================================== */
+
+/* 1. Calculadora de lana y medidas */
+.yarn-calculator-section {
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.yarn-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.yarn-calc-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-2);
+}
+
+.yarn-calc-card {
+  background: var(--color-input);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.yarn-calc-card__num {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-brand-deep);
+  line-height: 1.1;
+}
+
+.yarn-calc-card__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.yarn-calc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* 2. Subcontador de motivos / secciones */
+.motif-counter-card {
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.motif-counter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.motif-counter-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.motif-counter-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+.motif-counter-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(47, 93, 74, 0.12);
+  color: var(--color-brand-deep);
+}
+
+.motif-counter-top-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.motif-toggle-btn,
+.motif-edit-btn {
+  background: transparent;
+  border: 1px solid var(--color-line-strong);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-ink);
+}
+
+.motif-toggle-btn:hover,
+.motif-edit-btn:hover {
+  background: var(--color-input);
+  border-color: var(--color-brand);
+}
+
+.motif-config-form {
+  background: var(--color-input);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.motif-progress-display {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.motif-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.motif-metric {
+  background: var(--color-input);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+}
+
+.motif-metric__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.motif-metric__val {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-brand-deep);
+}
+
+.motif-progress-bar-wrap {
+  height: 0.6rem;
+  background: var(--color-input);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.motif-progress-bar {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.2s var(--ease);
+}
+
+.motif-done-banner {
+  margin: 0;
+  padding: var(--space-2);
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 3. Ergonomía */
+.ergo-trigger-btn {
+  background: rgba(47, 93, 74, 0.1);
+  color: var(--color-brand-deep);
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.65rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ergo-trigger-btn:hover {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.modal-card--ergo {
+  max-width: 580px;
+}
+
+.ergo-intro {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-ink);
+  line-height: 1.45;
+}
+
+.ergo-exercises-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ergo-exercise {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  background: var(--color-input);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.ergo-exercise__icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.ergo-exercise__desc {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+/* 4. Ficha técnica imprimible */
+.modal-card--techsheet {
+  max-width: 760px;
+}
+
+.techsheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.techsheet-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-family: var(--font-display);
+  color: var(--color-brand-deep);
+}
+
+.techsheet-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.techsheet-cover-thumb {
+  width: 90px;
+  height: 90px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  border: 1px solid var(--color-line-strong);
+}
+
+.techsheet-divider {
+  border: 0;
+  border-top: 1px solid var(--color-line-strong);
+  margin: var(--space-2) 0;
+}
+
+.techsheet-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+
+.techsheet-spec-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.techsheet-spec-item--full {
+  grid-column: 1 / -1;
+}
+
+.techsheet-spec-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-muted);
+}
+
+.techsheet-spec-val {
+  font-size: 1rem;
+  color: var(--color-ink);
+}
+
+.techsheet-leave-note,
+.techsheet-notes {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.techsheet-pattern-section {
+  margin-top: var(--space-3);
+}
+
+.techsheet-subheading {
+  font-size: 1.1rem;
+  margin: 0 0 var(--space-2);
+  color: var(--color-brand-deep);
+}
+
+.techsheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.techsheet-table th,
+.techsheet-table td {
+  border: 1px solid var(--color-line-strong);
+  padding: 0.4rem 0.6rem;
+}
+
+.techsheet-table th {
+  background: var(--color-input);
+  font-weight: 700;
+  text-align: left;
+}
+
+.techsheet-table tr.is-done td {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* 5. Calibración de escala */
+.scale-calibration-card {
+  background: var(--color-surface);
+  border: 2px dashed var(--color-brand);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.scale-calibration-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-brand-deep);
+}
+
+.scale-calibration-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.scale-calibration-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.scale-calibration-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scale-calibration-res-text {
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+
