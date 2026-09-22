@@ -1,12 +1,12 @@
 import { LONG_SESSION_MS } from './models'
 import type { KnitSession, Project, SessionDayGroup } from './types'
 
-export function totalSessionMs(project: Project): number {
+export function totalSessionMs(project: Project, now = Date.now()): number {
   const closed = project.sessions.reduce((sum, s) => sum + s.durationMs, 0)
   if (!project.timerStartedAt) return closed
   const started = Date.parse(project.timerStartedAt)
   if (!Number.isFinite(started)) return closed
-  return closed + Math.max(0, Date.now() - started)
+  return closed + Math.max(0, now - started)
 }
 
 export function sessionMsToday(project: Project, now = new Date()): number {

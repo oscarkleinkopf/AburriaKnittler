@@ -51,6 +51,17 @@ export function removeProjectPhoto(
   }
 }
 
+export function setCoverPhoto(project: Project, dataUrl: string): Project {
+  const photos = collectPhotos(project)
+  if (!photos.includes(dataUrl)) return project
+  const next = [dataUrl, ...photos.filter((url) => url !== dataUrl)]
+  return {
+    ...project,
+    photos: next,
+    photoDataUrl: next[0] ?? null,
+  }
+}
+
 export function analysisHasCounters(result: AnalyzeResult): boolean {
   return result.estimatedRows != null || result.estimatedStitches != null
 }

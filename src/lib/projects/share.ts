@@ -69,6 +69,7 @@ export function buildPatternShare(project: Project): PatternShareFile {
     gaugeStitches: project.gaugeStitches,
     gaugeRows: project.gaugeRows,
     gaugeCm: project.gaugeCm,
+    gaugeMeters: project.gaugeMeters,
     notes: project.notes,
     steps: sortedPatternSteps(project.patternSteps).map((s) => ({
       row: s.row,
@@ -87,6 +88,7 @@ export function patternShareToText(share: PatternShareFile): string {
       gaugeStitches: share.gaugeStitches,
       gaugeRows: share.gaugeRows,
       gaugeCm: share.gaugeCm,
+      gaugeMeters: share.gaugeMeters,
     }),
     share.notes.trim() || null,
   ].filter(Boolean)
@@ -172,6 +174,7 @@ function patternShareToProject(raw: Record<string, unknown>): Project {
     gaugeStitches: Number(raw.gaugeStitches) || 0,
     gaugeRows: Number(raw.gaugeRows) || 0,
     gaugeCm: Number(raw.gaugeCm) || DEFAULT_GAUGE_CM,
+    gaugeMeters: Number(raw.gaugeMeters) || 0,
     patternSteps: steps,
   })
 }

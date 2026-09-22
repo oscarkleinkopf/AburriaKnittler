@@ -1,5 +1,42 @@
 import { createId, MAX_PATTERN_STEPS } from './models'
-import type { PatternStep, Project, RepeatRangeResult, RepeatSpec } from './types'
+import { foldSearch } from './search'
+import {
+  MAX_STEP_REPEATS,
+  type PatternStep,
+  type Project,
+  type RepeatRangeResult,
+  type RepeatSpec,
+} from './types'
+
+export function stepRepeatTimes(step: PatternStep): number {
+  return Math.max(0, Math.round(Number(step.repeatTimes) || 0))
+}
+
+export function stepRepeatDone(step: PatternStep): number {
+  const times = stepRepeatTimes(step)
+  return Math.min(times, Math.max(0, Math.round(Number(step.repeatDone) || 0)))
+}
+
+export function formatStepRepeat(step: PatternStep): string | null {
+  const times = stepRepeatTimes(step)
+  if (times <= 0) return null
+  return `Van ${stepRepeatDone(step)} de ${times}`
+}
+
+export function bumpPatternRepeat(
+  steps: PatternStep[],
+  id: string,
+  delta: number,
+): PatternStep[] {
+  if (!delta) return steps
+  return steps.map((s) => {
+    if (s.id !== id) return s
+    const times = stepRepeatTimes(s)
+    if (times <= 0) return s
+    const next = Math.min(times, Math.max(0, stepRepeatDone(s) + delta))
+    return { ...s, repeatTimes: times, repeatDone: next }
+  })
+}
 
 export function currentPatternStep(
   project: Project,
@@ -237,6 +274,8 @@ export function repeatPatternRange(
         row: step.row + i * span,
         instruction: step.instruction,
         done: false,
+        repeatTimes: stepRepeatTimes(step) || undefined,
+        repeatDone: 0,
       })
     }
   }
@@ -279,10 +318,39 @@ export function movePatternStep(
   })
 }
 
+/** Copia un paso a continuación, misma fila, sin marcar como hecha. */
+export function duplicatePatternStep(
+  steps: PatternStep[],
+  id: string,
+): PatternStep[] {
+  if (steps.length >= MAX_PATTERN_STEPS) return steps
+  const index = steps.findIndex((s) => s.id === id)
+  if (index < 0) return steps
+  const source = steps[index]
+  const copy: PatternStep = {
+    id: createId(),
+    row: source.row,
+    instruction: source.instruction,
+    done: false,
+    repeatTimes: source.repeatTimes,
+    repeatDone: 0,
+  }
+  return [...steps.slice(0, index + 1), copy, ...steps.slice(index + 1)]
+}
+
+export function patternStepMatchesQuery(
+  step: PatternStep,
+  query: string,
+): boolean {
+  const q = foldSearch(query.trim())
+  if (!q) return true
+  return foldSearch(`${step.row} ${step.instruction}`).includes(q)
+}
+
 export function updatePatternStep(
   project: Project,
   stepId: string,
-  patch: { row?: number; instruction?: string },
+  patch: { row?: number; instruction?: string; repeatTimes?: number },
 ): Project {
   return {
     ...project,
@@ -294,7 +362,15 @@ export function updatePatternStep(
           : s.instruction
       const row =
         patch.row === undefined ? s.row : Math.max(0, Math.round(patch.row))
-      return { ...s, instruction, row }
+      const repeatTimes =
+        patch.repeatTimes === undefined
+          ? stepRepeatTimes(s)
+          : Math.min(
+              MAX_STEP_REPEATS,
+              Math.max(0, Math.round(patch.repeatTimes)),
+            )
+      const repeatDone = Math.min(repeatTimes, stepRepeatDone(s))
+      return { ...s, instruction, row, repeatTimes, repeatDone }
     }),
   }
 }

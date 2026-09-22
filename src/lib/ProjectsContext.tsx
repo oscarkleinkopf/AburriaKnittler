@@ -12,12 +12,17 @@ import {
   addProjectPhoto,
   applyAnalysisToCounters,
   archiveProjectInState,
+  bumpPatternRepeat,
   collectPhotos,
   createId,
   createProject,
+  duplicatePatternStep,
   duplicateProject,
+  hasPiece,
   loadState,
+  MAX_PATTERN_STEPS,
   MAX_PHOTOS,
+  MAX_STEP_REPEATS,
   parseBackupJson,
   pushHistory,
   removeProjectPhoto,
@@ -26,12 +31,13 @@ import {
   movePatternStep as shiftPatternStep,
   restoreProjectInState,
   saveState,
+  setCoverPhoto,
   touch,
   undoLastChange,
   updatePatternStep,
+  upsertNamedMarker,
   type ImportMode,
   type ImportResult,
-  type NamedMarker,
   type PatternStep,
   type Project,
   type ProjectsState,
@@ -50,6 +56,8 @@ type ProjectsApi = {
   deleteProject: (id: string) => void
   bumpRows: (delta: number) => void
   bumpStitches: (delta: number) => void
+  bumpPieceRows: (delta: number) => void
+  bumpPieceStitches: (delta: number) => void
   undoLast: () => void
   resetCounters: () => void
   setMarkerEvery: (n: number) => void
@@ -61,10 +69,15 @@ type ProjectsApi = {
   setPhoto: (dataUrl: string | null) => void
   addPhoto: (dataUrl: string) => boolean
   removePhoto: (dataUrl: string) => void
+  setCover: (dataUrl: string) => void
   replaceState: (next: ProjectsState) => void
   importBackup: (jsonText: string, mode: ImportMode) => ImportResult
   markOpened: () => void
-  addPatternStep: (row: number, instruction: string) => void
+  addPatternStep: (
+    row: number,
+    instruction: string,
+    repeatTimes?: number,
+  ) => void
   addPatternSteps: (steps: PatternStep[]) => void
   repeatPatternRange: (
     from: number,
@@ -72,11 +85,13 @@ type ProjectsApi = {
     times: number,
   ) => RepeatRangeResult
   togglePatternStep: (stepId: string) => void
+  bumpStepRepeat: (stepId: string, delta: number) => void
   updatePatternStep: (
     stepId: string,
-    patch: { row?: number; instruction?: string },
+    patch: { row?: number; instruction?: string; repeatTimes?: number },
   ) => void
   removePatternStep: (stepId: string) => void
+  duplicatePatternStep: (stepId: string) => boolean
   movePatternStep: (stepId: string, direction: -1 | 1) => void
   startTimer: () => void
   stopTimer: () => void
@@ -109,11 +124,9 @@ function patchActive(
     ...memory,
     projects: memory.projects.map((p) => {
       if (p.id !== id) return p
-      let next = touch(fn(p))
-      if (recordHistory) {
-        next = pushHistory(next, next.rows, next.stitches)
-      }
-      return next
+      const next = touch(fn(p))
+      if (!recordHistory) return next
+      return pushHistory(next, next.rows, next.stitches)
     }),
   }
   emit()
@@ -123,20 +136,18 @@ const ProjectsContext = createContext<ProjectsApi | null>(null)
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-
   const active = useMemo(
     () => state.projects.find((p) => p.id === state.activeId) ?? null,
     [state],
   )
 
   const setActive = useCallback((id: string) => {
-    if (!memory.projects.some((p) => p.id === id)) return
-    const now = new Date().toISOString()
+    if (memory.activeId === id) return
     memory = {
       ...memory,
       activeId: id,
       projects: memory.projects.map((p) =>
-        p.id === id ? touch({ ...p, lastOpenedAt: now }) : p,
+        p.id === id ? { ...p, lastOpenedAt: new Date().toISOString() } : p,
       ),
     }
     emit()
@@ -153,13 +164,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return project
   }, [])
 
-  const duplicateById = useCallback((id: string) => {
+  const duplicateById = useCallback((id: string): Project | null => {
     const source = memory.projects.find((p) => p.id === id)
     if (!source) return null
-    const copy = duplicateProject(
-      source,
-      memory.projects.map((p) => p.name),
-    )
+    const existing = memory.projects.map((p) => p.name)
+    const copy = duplicateProject(source, existing)
     memory = {
       ...memory,
       activeId: copy.id,
@@ -173,7 +182,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     memory = {
       ...memory,
       projects: memory.projects.map((p) =>
-        p.id === id ? touch({ ...p, ...patch, id: p.id }) : p,
+        p.id === id ? touch({ ...p, ...patch }) : p,
       ),
     }
     emit()
@@ -190,11 +199,12 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const deleteProject = useCallback((id: string) => {
-    if (memory.projects.length <= 1) return
-    const projects = memory.projects.filter((p) => p.id !== id)
-    const activeId =
-      memory.activeId === id ? projects[0]?.id ?? null : memory.activeId
-    memory = { ...memory, projects, activeId }
+    const nextProjects = memory.projects.filter((p) => p.id !== id)
+    let nextActive = memory.activeId
+    if (nextActive === id) {
+      nextActive = nextProjects[0]?.id ?? null
+    }
+    memory = { ...memory, activeId: nextActive, projects: nextProjects }
     emit()
   }, [])
 
@@ -202,21 +212,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const current = memory.projects.find((p) => p.id === memory.activeId)
     if (!current || current.tapsLocked) return
     patchActive((p) => {
-      const prevRows = p.rows
       const rows = Math.max(0, p.rows + delta)
       const stitches = delta !== 0 && rows !== p.rows ? 0 : p.stitches
-      const advanced = applyRowAdvanceToPattern(
-        p.patternSteps,
-        prevRows,
-        rows,
-      )
+      const advanced = applyRowAdvanceToPattern(p.patternSteps, p.rows, rows)
       return pushHistory(
-        {
-          ...p,
-          rows,
-          stitches,
-          patternSteps: advanced.steps,
-        },
+        { ...p, rows, stitches, patternSteps: advanced.steps },
         rows,
         stitches,
         advanced.markedIds,
@@ -231,6 +231,30 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       (p) => ({ ...p, stitches: Math.max(0, p.stitches + delta) }),
       true,
     )
+  }, [])
+
+  const bumpPieceRows = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked || !hasPiece(current)) return
+    patchActive((p) => {
+      const pieceRows = Math.max(0, p.pieceRows + delta)
+      const pieceStitches =
+        delta !== 0 && pieceRows !== p.pieceRows ? 0 : p.pieceStitches
+      return pushHistory(
+        { ...p, pieceRows, pieceStitches },
+        p.rows,
+        p.stitches,
+      )
+    })
+  }, [])
+
+  const bumpPieceStitches = useCallback((delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked || !hasPiece(current)) return
+    patchActive((p) => {
+      const pieceStitches = Math.max(0, p.pieceStitches + delta)
+      return pushHistory({ ...p, pieceStitches }, p.rows, p.stitches)
+    })
   }, [])
 
   const undoLast = useCallback(() => {
@@ -252,15 +276,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const addNamedMarker = useCallback((row: number, label: string) => {
     const text = label.trim()
     if (!text) return
-    const marker: NamedMarker = {
-      id: createId(),
-      row: Math.max(0, Math.round(row)),
-      label: text,
-    }
-    patchActive((p) => ({
-      ...p,
-      namedMarkers: [...p.namedMarkers, marker].slice(0, 40),
-    }))
+    patchActive((p) => upsertNamedMarker(p, row, text))
   }, [])
 
   const removeNamedMarker = useCallback((id: string) => {
@@ -300,6 +316,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     patchActive((p) => removeProjectPhoto(p, dataUrl))
   }, [])
 
+  const setCover = useCallback((dataUrl: string) => {
+    if (!dataUrl) return
+    patchActive((p) => setCoverPhoto(p, dataUrl))
+  }, [])
+
   const replaceState = useCallback((next: ProjectsState) => {
     memory = next
     emit()
@@ -319,20 +340,29 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const addPatternStep = useCallback((row: number, instruction: string) => {
-    const text = instruction.trim()
-    if (!text) return
-    const step: PatternStep = {
-      id: createId(),
-      row: Math.max(0, Math.round(row)),
-      instruction: text,
-      done: false,
-    }
-    patchActive((p) => ({
-      ...p,
-      patternSteps: [...p.patternSteps, step],
-    }))
-  }, [])
+  const addPatternStep = useCallback(
+    (row: number, instruction: string, repeatTimes = 0) => {
+      const text = instruction.trim()
+      if (!text) return
+      const times = Math.min(
+        MAX_STEP_REPEATS,
+        Math.max(0, Math.round(repeatTimes) || 0),
+      )
+      const step: PatternStep = {
+        id: createId(),
+        row: Math.max(0, Math.round(row)),
+        instruction: text,
+        done: false,
+        repeatTimes: times,
+        repeatDone: 0,
+      }
+      patchActive((p) => ({
+        ...p,
+        patternSteps: [...p.patternSteps, step],
+      }))
+    },
+    [],
+  )
 
   const addPatternSteps = useCallback((steps: PatternStep[]) => {
     if (steps.length === 0) return
@@ -363,8 +393,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const bumpStepRepeat = useCallback((stepId: string, delta: number) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current || current.tapsLocked) return
+    patchActive((p) => ({
+      ...p,
+      patternSteps: bumpPatternRepeat(p.patternSteps, stepId, delta),
+    }))
+  }, [])
+
   const updateStep = useCallback(
-    (stepId: string, patch: { row?: number; instruction?: string }) => {
+    (
+      stepId: string,
+      patch: { row?: number; instruction?: string; repeatTimes?: number },
+    ) => {
       patchActive((p) => updatePatternStep(p, stepId, patch))
     },
     [],
@@ -375,6 +417,18 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       ...p,
       patternSteps: p.patternSteps.filter((s) => s.id !== stepId),
     }))
+  }, [])
+
+  const duplicateStep = useCallback((stepId: string) => {
+    const current = memory.projects.find((p) => p.id === memory.activeId)
+    if (!current) return false
+    if (current.patternSteps.length >= MAX_PATTERN_STEPS) return false
+    if (!current.patternSteps.some((s) => s.id === stepId)) return false
+    patchActive((p) => ({
+      ...p,
+      patternSteps: duplicatePatternStep(p.patternSteps, stepId),
+    }))
+    return true
   }, [])
 
   const moveStep = useCallback((stepId: string, direction: -1 | 1) => {
@@ -428,6 +482,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      bumpPieceRows,
+      bumpPieceStitches,
       undoLast,
       resetCounters,
       setMarkerEvery,
@@ -439,6 +495,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       addPhoto,
       removePhoto,
+      setCover,
       replaceState,
       importBackup,
       markOpened,
@@ -446,8 +503,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addPatternSteps,
       repeatPatternRange: repeatRange,
       togglePatternStep,
+      bumpStepRepeat,
       updatePatternStep: updateStep,
       removePatternStep,
+      duplicatePatternStep: duplicateStep,
       movePatternStep: moveStep,
       startTimer,
       stopTimer,
@@ -464,6 +523,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       deleteProject,
       bumpRows,
       bumpStitches,
+      bumpPieceRows,
+      bumpPieceStitches,
       undoLast,
       resetCounters,
       setMarkerEvery,
@@ -475,6 +536,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setPhoto,
       addPhoto,
       removePhoto,
+      setCover,
       replaceState,
       importBackup,
       markOpened,
@@ -482,8 +544,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       addPatternSteps,
       repeatRange,
       togglePatternStep,
+      bumpStepRepeat,
       updateStep,
       removePatternStep,
+      duplicateStep,
       moveStep,
       startTimer,
       stopTimer,

@@ -6,6 +6,8 @@ export type HistoryEntry = {
   stitches: number
   /** Pasos del patrón marcados al llegar a esta vuelta (para deshacer). */
   autoMarkedIds?: string[]
+  pieceRows?: number
+  pieceStitches?: number
 }
 
 export type PatternStep = {
@@ -14,6 +16,9 @@ export type PatternStep = {
   row: number
   instruction: string
   done: boolean
+  /** 0 o ausente = sin contador de repeticiones en la fila */
+  repeatTimes?: number
+  repeatDone?: number
 }
 
 export type KnitSession = {
@@ -22,6 +27,8 @@ export type KnitSession = {
   endedAt: string
   durationMs: number
 }
+
+export type SideMode = 'flat' | 'round' | 'off'
 
 export type NamedMarker = {
   id: string
@@ -45,6 +52,8 @@ export type Project = {
   gaugeRows: number
   /** Centímetros de la muestra (por defecto 10) */
   gaugeCm: number
+  /** Metros de lana usados en esa muestra (0 = no) */
+  gaugeMeters: number
   createdAt: string
   updatedAt: string
   rows: number
@@ -68,10 +77,28 @@ export type Project = {
   leaveNote: string
   /** Bloquea sumar/restar (evita toques accidentales) */
   tapsLocked: boolean
+  /** Segunda pieza (manga, cuello…). Vacío = oculta. */
+  pieceLabel: string
+  pieceRows: number
+  pieceStitches: number
+  /** Derecho/revés según la vuelta */
+  sideMode: SideMode
   /** Subcontador de motivo/sección repetitiva */
   motifEnabled?: boolean
   motifLength?: number
   motifTargetRepeats?: number
+}
+
+export const MAX_STEP_REPEATS = 80
+export const MAX_PIECE_LABEL = 32
+export const DEFAULT_PIECE_LABEL = 'Manga'
+export const MIN_PACE_ROWS = 3
+export const MIN_PACE_MS = 5 * 60 * 1000
+
+export type RemainingEstimate = {
+  remainingRows: number
+  remainingMs: number
+  rowsPerHour: number
 }
 
 export type MotifProgress = {
@@ -143,6 +170,7 @@ export type PatternShareFile = {
   gaugeStitches: number
   gaugeRows: number
   gaugeCm: number
+  gaugeMeters: number
   notes: string
   steps: Array<{ row: number; instruction: string }>
 }

@@ -448,6 +448,26 @@
   color: var(--color-ink-muted);
 }
 
+details.stack > summary {
+  cursor: pointer;
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+details.stack > summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.calc-result {
+  margin: 0;
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
 .field {
   display: grid;
   gap: var(--space-2);
@@ -638,6 +658,42 @@
 .counter-grid {
   display: grid;
   gap: var(--space-4);
+}
+
+.counter-side {
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+.piece-panel {
+  padding: var(--space-4);
+  border: 2px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.repeat-progress {
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+.counter-fs__side {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+  margin: 0;
+}
+
+.counter-fs__repeat {
+  display: grid;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.counter-fs__repeat p {
+  margin: 0;
+  font-weight: 700;
 }
 
 .counter-display--secondary .counter-display__value--sm {
@@ -969,6 +1025,24 @@
   color: var(--color-ink);
 }
 
+.pattern-item--current {
+  border-color: var(--color-brand-deep);
+  box-shadow: 0 0 0 2px rgba(47, 93, 74, 0.28);
+  background: rgba(47, 93, 74, 0.08);
+}
+
+.pattern-item__repeat {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-brand-deep);
+}
+
+.pattern-item__marker {
+  margin: 0;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
 .session-history {
   display: grid;
   gap: var(--space-3);
@@ -1109,6 +1183,18 @@
   object-fit: cover;
   border: 2px solid rgba(47, 93, 74, 0.2);
   background: var(--color-surface);
+}
+
+.photo-gallery__item:first-child .photo-gallery__img {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand-soft);
+}
+
+.photo-gallery__cover-label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-brand-deep);
 }
 
 .print-sheet {

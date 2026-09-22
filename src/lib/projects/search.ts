@@ -74,6 +74,13 @@ export function formatGauge(project: Project): string | null {
     const counts = [stitches, rows].filter(Boolean).join(' × ')
     bits.push(`Muestra ${cm} cm: ${counts}`)
   }
+  if (project.gaugeMeters > 0) {
+    const m = project.gaugeMeters
+    const label = Number.isInteger(m)
+      ? `${m} m`
+      : `${String(m).replace('.', ',')} m`
+    bits.push(`${label} en la muestra`)
+  }
   if (project.needles.trim()) bits.push(`Aguja ${project.needles.trim()}`)
   if (project.yarn.trim()) bits.push(project.yarn.trim())
   if (bits.length === 0) return null

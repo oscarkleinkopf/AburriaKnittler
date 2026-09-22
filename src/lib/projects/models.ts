@@ -1,9 +1,12 @@
 import { collectPhotos } from './photos'
-import type {
-  KnitSession,
-  NamedMarker,
-  PatternStep,
-  Project,
+import {
+  MAX_PIECE_LABEL,
+  MAX_STEP_REPEATS,
+  type KnitSession,
+  type NamedMarker,
+  type PatternStep,
+  type Project,
+  type SideMode,
 } from './types'
 
 export { MAX_PHOTOS } from './photos'
@@ -15,6 +18,14 @@ export const MAX_SESSIONS = 80
 export const MAX_NAMED_MARKERS = 40
 export const LONG_SESSION_MS = 3 * 60 * 60 * 1000
 
+export {
+  DEFAULT_PIECE_LABEL,
+  MAX_PIECE_LABEL,
+  MAX_STEP_REPEATS,
+  MIN_PACE_MS,
+  MIN_PACE_ROWS,
+} from './types'
+
 export function createId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -24,6 +35,27 @@ export function createId(): string {
 
 export function clipLeaveNote(text: string): string {
   return text.slice(0, MAX_LEAVE_NOTE)
+}
+
+export function clipPieceLabel(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, MAX_PIECE_LABEL)
+}
+
+export function hasPiece(project: Project): boolean {
+  return Boolean(project.pieceLabel.trim())
+}
+
+export function normalizeSideMode(value: unknown): SideMode {
+  if (value === 'round' || value === 'off' || value === 'flat') return value
+  return 'flat'
+}
+
+export function formatRowSide(row: number, mode: SideMode): string | null {
+  if (mode === 'off' || row <= 0) return null
+  if (mode === 'round') return 'Circular · del derecho'
+  return row % 2 === 1
+    ? 'Vuelta impar · del derecho'
+    : 'Vuelta par · del revés'
 }
 
 export function createProject(name: string, notes = ''): Project {
@@ -39,6 +71,7 @@ export function createProject(name: string, notes = ''): Project {
     gaugeStitches: 0,
     gaugeRows: 0,
     gaugeCm: DEFAULT_GAUGE_CM,
+    gaugeMeters: 0,
     createdAt: now,
     updatedAt: now,
     rows: 0,
@@ -55,6 +88,10 @@ export function createProject(name: string, notes = ''): Project {
     archivedAt: null,
     leaveNote: '',
     tapsLocked: false,
+    pieceLabel: '',
+    pieceRows: 0,
+    pieceStitches: 0,
+    sideMode: 'flat',
     motifEnabled: false,
     motifLength: 0,
     motifTargetRepeats: 0,
@@ -62,11 +99,21 @@ export function createProject(name: string, notes = ''): Project {
 }
 
 export function normalizePatternStep(s: PatternStep): PatternStep {
+  const repeatTimes = Math.min(
+    MAX_STEP_REPEATS,
+    Math.max(0, Math.round(Number(s.repeatTimes) || 0)),
+  )
+  const repeatDone = Math.min(
+    repeatTimes,
+    Math.max(0, Math.round(Number(s.repeatDone) || 0)),
+  )
   return {
     id: s.id || createId(),
     row: Math.max(0, Math.round(Number(s.row) || 0)),
     instruction: String(s.instruction ?? '').trim() || 'Sin instrucción',
     done: Boolean(s.done),
+    repeatTimes,
+    repeatDone,
   }
 }
 
@@ -103,6 +150,10 @@ export function normalizeProject(p: Project): Project {
       1,
       Math.round(Number(p.gaugeCm) || DEFAULT_GAUGE_CM) || DEFAULT_GAUGE_CM,
     ),
+    gaugeMeters: Math.min(
+      500,
+      Math.max(0, Math.round((Number(p.gaugeMeters) || 0) * 10) / 10),
+    ),
     createdAt: p.createdAt || new Date().toISOString(),
     updatedAt: p.updatedAt || new Date().toISOString(),
     rows: Math.max(0, Number(p.rows) || 0),
@@ -132,6 +183,10 @@ export function normalizeProject(p: Project): Project {
       typeof p.archivedAt === 'string' && p.archivedAt ? p.archivedAt : null,
     leaveNote: clipLeaveNote(String(p.leaveNote ?? '')).trim(),
     tapsLocked: Boolean(p.tapsLocked),
+    pieceLabel: clipPieceLabel(String(p.pieceLabel ?? '')),
+    pieceRows: Math.max(0, Math.round(Number(p.pieceRows) || 0)),
+    pieceStitches: Math.max(0, Math.round(Number(p.pieceStitches) || 0)),
+    sideMode: normalizeSideMode(p.sideMode),
     motifEnabled: Boolean(p.motifEnabled),
     motifLength: Math.max(0, Math.round(Number(p.motifLength) || 0)),
     motifTargetRepeats: Math.max(0, Math.round(Number(p.motifTargetRepeats) || 0)),
@@ -167,6 +222,8 @@ export function duplicateProject(
     lastOpenedAt: now,
     rows: 0,
     stitches: 0,
+    pieceRows: 0,
+    pieceStitches: 0,
     history: [],
     sessions: [],
     timerStartedAt: null,
@@ -179,6 +236,7 @@ export function duplicateProject(
       ...s,
       id: createId(),
       done: false,
+      repeatDone: 0,
     })),
     namedMarkers: project.namedMarkers.map((m) => ({
       ...m,
