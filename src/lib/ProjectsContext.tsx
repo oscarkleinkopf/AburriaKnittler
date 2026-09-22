@@ -16,17 +16,16 @@ import {
   collectPhotos,
   createId,
   createProject,
-  duplicateProject,
   duplicatePatternStep,
+  duplicateProject,
   hasPiece,
   loadState,
-  MAX_PHOTOS,
   MAX_PATTERN_STEPS,
+  MAX_PHOTOS,
   MAX_STEP_REPEATS,
   parseBackupJson,
   pushHistory,
   removeProjectPhoto,
-  upsertNamedMarker,
   applyRowAdvanceToPattern,
   repeatPatternRange as expandPatternRange,
   movePatternStep as shiftPatternStep,
@@ -36,6 +35,7 @@ import {
   touch,
   undoLastChange,
   updatePatternStep,
+  upsertNamedMarker,
   type ImportMode,
   type ImportResult,
   type PatternStep,
@@ -124,11 +124,9 @@ function patchActive(
     ...memory,
     projects: memory.projects.map((p) => {
       if (p.id !== id) return p
-      let next = touch(fn(p))
-      if (recordHistory) {
-        next = pushHistory(next, next.rows, next.stitches)
-      }
-      return next
+      const next = touch(fn(p))
+      if (!recordHistory) return next
+      return pushHistory(next, next.rows, next.stitches)
     }),
   }
   emit()
@@ -138,20 +136,18 @@ const ProjectsContext = createContext<ProjectsApi | null>(null)
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-
   const active = useMemo(
     () => state.projects.find((p) => p.id === state.activeId) ?? null,
     [state],
   )
 
   const setActive = useCallback((id: string) => {
-    if (!memory.projects.some((p) => p.id === id)) return
-    const now = new Date().toISOString()
+    if (memory.activeId === id) return
     memory = {
       ...memory,
       activeId: id,
       projects: memory.projects.map((p) =>
-        p.id === id ? touch({ ...p, lastOpenedAt: now }) : p,
+        p.id === id ? { ...p, lastOpenedAt: new Date().toISOString() } : p,
       ),
     }
     emit()
@@ -168,13 +164,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return project
   }, [])
 
-  const duplicateById = useCallback((id: string) => {
+  const duplicateById = useCallback((id: string): Project | null => {
     const source = memory.projects.find((p) => p.id === id)
     if (!source) return null
-    const copy = duplicateProject(
-      source,
-      memory.projects.map((p) => p.name),
-    )
+    const existing = memory.projects.map((p) => p.name)
+    const copy = duplicateProject(source, existing)
     memory = {
       ...memory,
       activeId: copy.id,
@@ -188,7 +182,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     memory = {
       ...memory,
       projects: memory.projects.map((p) =>
-        p.id === id ? touch({ ...p, ...patch, id: p.id }) : p,
+        p.id === id ? touch({ ...p, ...patch }) : p,
       ),
     }
     emit()
@@ -205,11 +199,12 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const deleteProject = useCallback((id: string) => {
-    if (memory.projects.length <= 1) return
-    const projects = memory.projects.filter((p) => p.id !== id)
-    const activeId =
-      memory.activeId === id ? projects[0]?.id ?? null : memory.activeId
-    memory = { ...memory, projects, activeId }
+    const nextProjects = memory.projects.filter((p) => p.id !== id)
+    let nextActive = memory.activeId
+    if (nextActive === id) {
+      nextActive = nextProjects[0]?.id ?? null
+    }
+    memory = { ...memory, activeId: nextActive, projects: nextProjects }
     emit()
   }, [])
 
@@ -217,21 +212,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const current = memory.projects.find((p) => p.id === memory.activeId)
     if (!current || current.tapsLocked) return
     patchActive((p) => {
-      const prevRows = p.rows
       const rows = Math.max(0, p.rows + delta)
       const stitches = delta !== 0 && rows !== p.rows ? 0 : p.stitches
-      const advanced = applyRowAdvanceToPattern(
-        p.patternSteps,
-        prevRows,
-        rows,
-      )
+      const advanced = applyRowAdvanceToPattern(p.patternSteps, p.rows, rows)
       return pushHistory(
-        {
-          ...p,
-          rows,
-          stitches,
-          patternSteps: advanced.steps,
-        },
+        { ...p, rows, stitches, patternSteps: advanced.steps },
         rows,
         stitches,
         advanced.markedIds,

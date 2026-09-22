@@ -1,8 +1,16 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { Banner } from '../components/Banner'
 import { BigButton } from '../components/BigButton'
 import { DataCareBanners } from '../components/DataCareBanners'
+import { ProjectCard } from '../components/projects/ProjectCard'
+import { ProjectEditModal } from '../components/projects/ProjectEditModal'
+import {
+  ProjectFiltersBar,
+  type SortMode,
+} from '../components/projects/ProjectFiltersBar'
+import { ProjectGallery } from '../components/projects/ProjectGallery'
+import { ProjectStatsSummary } from '../components/projects/ProjectStatsSummary'
+import { ProjectTechSheetModal } from '../components/projects/ProjectTechSheetModal'
 import { useProjects } from '../lib/ProjectsContext'
 import {
   buildStorageReport,
@@ -13,19 +21,18 @@ import {
   collectPhotos,
   compressImageFile,
   downloadBackup,
-  formatGauge,
-  formatRelativeDate,
+  downloadProject,
   getLastSaveResult,
   MAX_PHOTOS,
   openProjects,
   archivedProjects,
-  PROJECT_FILTERS,
   projectMatchesFilter,
   projectMatchesQuery,
   readBackupFile,
   shareProject,
   sortProjectsByRecent,
   type ImportMode,
+  type Project,
   type ProjectFilter,
 } from '../lib/projects'
 
@@ -43,7 +50,6 @@ export function ProjectsPage() {
     setPhoto,
     addPhoto,
     removePhoto,
-    setCover,
     importBackup,
   } = useProjects()
   const nameId = useId()
@@ -53,32 +59,48 @@ export function ProjectsPage() {
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editNotes, setEditNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ProjectFilter>('all')
-  const searchId = useId()
+  const [sortMode, setSortMode] = useState<SortMode>('recent')
+  const [showArchived, setShowArchived] = useState(false)
+  const [techSheetProject, setTechSheetProject] = useState<Project | null>(null)
+
   const save = getLastSaveResult()
   const storage = buildStorageReport(
     state,
     !save.ok && save.reason === 'quota',
   )
   const openCount = openProjects(state.projects).length
+  const archivedList = archivedProjects(state.projects)
+
   const visibleOpen = useMemo(() => {
-    return sortProjectsByRecent(openProjects(state.projects)).filter(
+    const filtered = openProjects(state.projects).filter(
       (p) => projectMatchesQuery(p, query) && projectMatchesFilter(p, filter),
     )
-  }, [state.projects, query, filter])
+    if (sortMode === 'name') {
+      return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    }
+    if (sortMode === 'rows') {
+      return [...filtered].sort((a, b) => b.rows - a.rows || a.name.localeCompare(b.name, 'es'))
+    }
+    return sortProjectsByRecent(filtered)
+  }, [state.projects, query, filter, sortMode])
+
   const visibleArchived = useMemo(() => {
-    return sortProjectsByRecent(archivedProjects(state.projects)).filter(
+    const filtered = archivedProjects(state.projects).filter(
       (p) => projectMatchesQuery(p, query) && projectMatchesFilter(p, filter),
     )
-  }, [state.projects, query, filter])
-  const archivedCount = archivedProjects(state.projects).length
-  const activePhotos = active ? collectPhotos(active) : []
+    if (sortMode === 'name') {
+      return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    }
+    if (sortMode === 'rows') {
+      return [...filtered].sort((a, b) => b.rows - a.rows || a.name.localeCompare(b.name, 'es'))
+    }
+    return sortProjectsByRecent(filtered)
+  }, [state.projects, query, filter, sortMode])
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -90,15 +112,10 @@ export function ProjectsPage() {
   }
 
   function startEdit(id: string) {
-    const p = state.projects.find((x) => x.id === id)
-    if (!p) return
     setEditingId(id)
-    setEditName(p.name)
-    setEditNotes(p.notes)
   }
 
-  function saveEdit(e: FormEvent) {
-    e.preventDefault()
+  function saveEdit(editName: string, editNotes: string) {
     if (!editingId) return
     updateProject(editingId, {
       name: editName.trim() || 'Sin nombre',
@@ -109,8 +126,8 @@ export function ProjectsPage() {
     setMessage('Proyecto actualizado.')
   }
 
-  async function onPhoto(file: File | null) {
-    if (!file || !active) return
+  async function onPhotoUpload(file: File) {
+    if (!active) return
     if (collectPhotos(active).length >= MAX_PHOTOS) {
       setMessage(null)
       setError(`Como mucho ${MAX_PHOTOS} fotos. Quita una primero.`)
@@ -144,7 +161,9 @@ export function ProjectsPage() {
       markBackupExported()
       setError(null)
       setMessage(
-        `Respaldo descargado (${state.projects.length} proyecto${state.projects.length === 1 ? '' : 's'}).`,
+        `Respaldo descargado (${state.projects.length} proyecto${
+          state.projects.length === 1 ? '' : 's'
+        }).`,
       )
     } catch {
       setMessage(null)
@@ -152,555 +171,283 @@ export function ProjectsPage() {
     }
   }
 
-  function onDuplicate(projectId: string) {
-    const copy = duplicateProject(projectId)
-    if (!copy) return
-    const save = getLastSaveResult()
-    setEditingId(null)
-    if (!save.ok) {
-      setMessage(null)
-      setError(
-        save.reason === 'quota'
-          ? `«${copy.name}» se creó, pero no cupo en el aparato. Quita una foto.`
-          : `Copia «${copy.name}» lista, pero no se pudo guardar.`,
-      )
-      return
-    }
-    setError(null)
-    setMessage(
-      `Copia «${copy.name}» lista. El contador empieza en 0; el patrón se conserva.`,
-    )
-  }
-
-  function onArchive(projectId: string, name: string) {
-    archiveProject(projectId)
-    setEditingId(null)
-    setError(null)
-    setMessage(`«${name}» archivado. Puedes restaurarlo más abajo.`)
-  }
-
-  function onRestore(projectId: string, name: string) {
-    restoreProject(projectId)
-    setError(null)
-    setMessage(`«${name}» restaurado. Ya es el proyecto activo.`)
-  }
-
-  async function onShareProject(projectId: string) {
-    const project = state.projects.find((p) => p.id === projectId)
-    if (!project) return
+  async function onImport(file: File | null) {
+    if (!file) return
     try {
-      const mode = await shareProject(project)
+      const text = await readBackupFile(file)
+      const res = importBackup(text, importMode)
       setError(null)
       setMessage(
-        mode === 'shared'
-          ? `«${project.name}» listo para compartir.`
-          : `Descargado «${project.name}» (.json).`,
+        `Importación completada: ${res.added} añadido(s), ${res.updated} actualizado(s). Total: ${res.total}.`,
       )
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
-      setMessage(null)
-      setError('No se pudo compartir el proyecto.')
-    }
-  }
-
-  async function onImportFile(file: File | null) {
-    if (!file) return
-    setError(null)
-    try {
-      if (importMode === 'replace') {
-        const ok = window.confirm(
-          'Esto reemplazará TODOS los proyectos de este dispositivo por el contenido del archivo. ¿Continuar?',
-        )
-        if (!ok) return
-      }
-      const text = await readBackupFile(file)
-      const result = importBackup(text, importMode)
-      setMessage(
-        importMode === 'replace'
-          ? `Respaldo restaurado: ${result.total} proyecto${result.total === 1 ? '' : 's'}.`
-          : `Importado: ${result.added} nuevo${result.added === 1 ? '' : 's'}, ${result.updated} actualizado${result.updated === 1 ? '' : 's'} (${result.total} en total).`,
-      )
+      if (importRef.current) importRef.current.value = ''
     } catch (err) {
       setMessage(null)
       setError(
         err instanceof Error
           ? err.message
-          : 'No se pudo importar el respaldo.',
+          : 'No se pudo importar el archivo de respaldo.',
       )
-    } finally {
-      if (importRef.current) importRef.current.value = ''
     }
   }
 
-  return (
-    <section className="stack animate-enter" aria-labelledby="projects-title">
-      <div>
-        <h1 id="projects-title" className="page-title">
-          Proyectos
-        </h1>
-        <p className="page-lead">
-          Cada proyecto guarda su contador, notas, fotos y último análisis en
-          este dispositivo. Puedes exportar un JSON para cambiar de móvil.
-        </p>
-      </div>
+  async function handleShare(project: Project) {
+    try {
+      const outcome = await shareProject(project)
+      if (outcome === 'downloaded') {
+        setMessage(`Archivo JSON de «${project.name}» descargado.`)
+      }
+    } catch {
+      // Ignorar cancelaciones
+    }
+  }
 
-      {message && <Banner tone="info">{message}</Banner>}
-      {error && (
-        <Banner tone="error" role="alert">
-          {error}
+  function handleDelete(id: string, projectName: string) {
+    if (state.projects.length <= 1) {
+      alert('Debes tener al menos un proyecto. No puedes eliminar el único que queda.')
+      return
+    }
+    if (window.confirm(`¿Eliminar «${projectName}» definitivamente?`)) {
+      deleteProject(id)
+      setMessage(`Proyecto «${projectName}» eliminado.`)
+    }
+  }
+
+  const editingProject = editingId
+    ? state.projects.find((p) => p.id === editingId)
+    : null
+
+  return (
+    <div className="page page--projects">
+      <DataCareBanners state={state} />
+
+      <header className="page-header">
+        <h1 className="page-title">Proyectos</h1>
+        <p className="page-lead">
+          Administra tus labores de punto y ganchillo, respaldos y fotos.
+        </p>
+      </header>
+
+      <ProjectStatsSummary projects={state.projects} />
+
+      {message && (
+        <Banner tone="success">
+          <div className="banner__inline-wrap">
+            <span>{message}</span>
+            <button
+              type="button"
+              className="banner-close-btn"
+              onClick={() => setMessage(null)}
+              aria-label="Cerrar mensaje"
+            >
+              ✕
+            </button>
+          </div>
         </Banner>
       )}
 
-      <DataCareBanners
-        state={state}
-        onExported={() =>
-          setMessage(
-            `Respaldo descargado (${state.projects.length} proyecto${state.projects.length === 1 ? '' : 's'}).`,
-          )
-        }
+      {error && (
+        <Banner tone="error">
+          <div className="banner__inline-wrap">
+            <span>{error}</span>
+            <button
+              type="button"
+              className="banner-close-btn"
+              onClick={() => setError(null)}
+              aria-label="Cerrar error"
+            >
+              ✕
+            </button>
+          </div>
+        </Banner>
+      )}
+
+      <ProjectFiltersBar
+        query={query}
+        onQueryChange={setQuery}
+        filter={filter}
+        onFilterChange={setFilter}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
       />
 
-      <div className="backup-panel stack">
-        <h2 className="section-title">Respaldo</h2>
-        <p className="muted">
-          Descarga un archivo JSON con todos tus proyectos, o restaura uno
-          guardado antes. Este aparato usa {formatBytes(storage.usedBytes)} de
-          unos {formatBytes(storage.quotaBytes)}
-          {storage.photoCount > 0
-            ? `; las fotos ocupan ${formatBytes(storage.photoBytes)}`
-            : ''}
-          .
+      <section className="projects-list-section" aria-label="Lista de proyectos">
+        {visibleOpen.length > 0 ? (
+          <div className="projects-grid">
+            {visibleOpen.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                isActive={p.id === active?.id}
+                onSelect={setActive}
+                onEdit={startEdit}
+                onDuplicate={(id) => {
+                  const copy = duplicateProject(id)
+                  if (copy) setMessage(`Creada copia «${copy.name}».`)
+                }}
+                onArchive={archiveProject}
+                onDelete={(id) => handleDelete(id, p.name)}
+                onShare={handleShare}
+                onDownload={downloadProject}
+                onViewTechSheet={(proj) => setTechSheetProject(proj)}
+                canArchive={openCount > 1}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="projects-empty">
+            No se encontraron proyectos activos con los filtros aplicados.
+          </p>
+        )}
+      </section>
+
+      {archivedList.length > 0 && (
+        <section className="archived-section" aria-label="Proyectos archivados">
+          <div className="archived-section__header">
+            <h2 className="section-title">
+              Archivados ({archivedList.length})
+            </h2>
+            <button
+              type="button"
+              className="archived-toggle-btn"
+              onClick={() => setShowArchived((prev) => !prev)}
+            >
+              {showArchived ? 'Ocultar archivados' : 'Mostrar archivados'}
+            </button>
+          </div>
+
+          {showArchived && (
+            <div className="projects-grid">
+              {visibleArchived.map((p) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  isActive={false}
+                  onSelect={setActive}
+                  onEdit={startEdit}
+                  onDuplicate={(id) => {
+                    const copy = duplicateProject(id)
+                    if (copy) setMessage(`Creada copia «${copy.name}».`)
+                  }}
+                  onRestore={restoreProject}
+                  onDelete={(id) => handleDelete(id, p.name)}
+                  onShare={handleShare}
+                  onDownload={downloadProject}
+                  onViewTechSheet={(proj) => setTechSheetProject(proj)}
+                  canArchive={false}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {active && (
+        <ProjectGallery
+          photos={collectPhotos(active)}
+          projectName={active.name}
+          onAddPhoto={onPhotoUpload}
+          onRemovePhoto={removePhoto}
+          onSetCoverPhoto={(url) => setPhoto(url)}
+        />
+      )}
+
+      <section className="create-project-section" aria-label="Crear nuevo proyecto">
+        <h2 className="section-title">Nuevo proyecto</h2>
+        <form onSubmit={onCreate} className="create-form">
+          <div className="field">
+            <label htmlFor={nameId}>Nombre de la labor:</label>
+            <input
+              id={nameId}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ej. Jersey raglán merino, Bufanda trenzada"
+              autoComplete="off"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={notesId}>Notas iniciales (opcional):</label>
+            <input
+              id={notesId}
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Grosor de lana, agujas, talla..."
+            />
+          </div>
+          <div className="form-actions">
+            <BigButton type="submit" variant="primary">
+              Crear proyecto
+            </BigButton>
+          </div>
+        </form>
+      </section>
+
+      <section className="backup-section" aria-label="Copias de seguridad">
+        <h2 className="section-title">Respaldo y almacenamiento</h2>
+        <p className="backup-desc">
+          Tus datos se guardan solo en este navegador ({formatBytes(storage.usedBytes)} usados, {Math.round((storage.usedBytes / storage.quotaBytes) * 100)}% aprox. de la cuota).
+          Exporta una copia para llevarte tus labores a otro dispositivo o no perderlas si limpias el historial.
         </p>
-        <BigButton type="button" variant="secondary" block onClick={onExport}>
-          Exportar proyectos (.json)
-        </BigButton>
-        <fieldset className="backup-modes">
-          <legend className="sr-only">Modo de importación</legend>
-          <label className="backup-mode">
+
+        <div className="backup-actions">
+          <BigButton type="button" variant="secondary" onClick={onExport}>
+            📥 Exportar respaldo JSON
+          </BigButton>
+
+          <label htmlFor={importId} className="big-button big-button--ghost file-label">
+            📤 Importar respaldo
+            <input
+              id={importId}
+              ref={importRef}
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              onChange={(e) => onImport(e.target.files?.[0] ?? null)}
+            />
+          </label>
+        </div>
+
+        <div className="import-mode-selector">
+          <span>Modo al importar:</span>
+          <label className="radio-label">
             <input
               type="radio"
-              name="import-mode"
+              name="importMode"
+              value="merge"
               checked={importMode === 'merge'}
               onChange={() => setImportMode('merge')}
             />
-            Combinar con lo que ya tengo
+            Combinar con los actuales
           </label>
-          <label className="backup-mode">
+          <label className="radio-label">
             <input
               type="radio"
-              name="import-mode"
+              name="importMode"
+              value="replace"
               checked={importMode === 'replace'}
               onChange={() => setImportMode('replace')}
             />
             Reemplazar todo
           </label>
-        </fieldset>
-        <input
-          id={importId}
-          ref={importRef}
-          className="file-pick__input"
-          type="file"
-          accept="application/json,.json,text/json,text/plain"
-          onChange={(e) => void onImportFile(e.target.files?.[0] ?? null)}
+        </div>
+      </section>
+
+      {editingProject && (
+        <ProjectEditModal
+          initialName={editingProject.name}
+          initialNotes={editingProject.notes}
+          onSave={saveEdit}
+          onCancel={() => setEditingId(null)}
         />
-        <BigButton
-          type="button"
-          variant="ghost"
-          block
-          onClick={() => importRef.current?.click()}
-        >
-          Importar desde archivo
-        </BigButton>
-      </div>
-
-      {active && (
-        <div className="project-active">
-          <p className="project-active__label">Activo ahora</p>
-          <p className="project-active__name">{active.name}</p>
-          <p className="project-active__meta">
-            Vuelta {active.rows} · Punto {active.stitches}
-          </p>
-          {formatGauge(active) ? (
-            <p className="muted">{formatGauge(active)}</p>
-          ) : null}
-          <div className="project-active__actions">
-            <BigButton to="/contador" variant="primary">
-              Abrir contador
-            </BigButton>
-            <BigButton
-              type="button"
-              variant="secondary"
-              onClick={() => void onShareProject(active.id)}
-            >
-              Compartir
-            </BigButton>
-            <BigButton
-              type="button"
-              variant="ghost"
-              onClick={() => onDuplicate(active.id)}
-            >
-              Duplicar
-            </BigButton>
-          </div>
-          <div className="photo-gallery">
-            <p className="photo-gallery__label" id="active-photos-label">
-              Fotos ({activePhotos.length}/{MAX_PHOTOS})
-            </p>
-            {activePhotos.length > 0 ? (
-              <ul className="photo-gallery__list" aria-labelledby="active-photos-label">
-                {activePhotos.map((url, index) => (
-                  <li key={`${index}-${url.length}`} className="photo-gallery__item">
-                    <img
-                      className="photo-gallery__img"
-                      src={url}
-                      alt={
-                        index === 0
-                          ? `Portada de ${active.name}`
-                          : `Foto ${index + 1} de ${active.name}`
-                      }
-                    />
-                    {index === 0 ? (
-                      <p className="photo-gallery__cover-label">Portada</p>
-                    ) : (
-                      <BigButton
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setCover(url)
-                          setError(null)
-                          setMessage('Esta foto es ahora la portada.')
-                        }}
-                      >
-                        Usar de portada
-                      </BigButton>
-                    )}
-                    <BigButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        removePhoto(url)
-                        setError(null)
-                        setMessage(
-                          index === 0
-                            ? 'Portada quitada.'
-                            : 'Foto quitada del proyecto.',
-                        )
-                      }}
-                    >
-                      Quitar
-                    </BigButton>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="muted">Aún no hay fotos de referencia.</p>
-            )}
-            <div className="row-actions">
-              {activePhotos.length < MAX_PHOTOS ? (
-                <label className="file-button">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="file-pick__input"
-                    onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
-                  />
-                  <span className="big-button big-button--ghost">
-                    Añadir imagen
-                  </span>
-                </label>
-              ) : (
-                <p className="muted">Como mucho {MAX_PHOTOS} fotos. Quita una para añadir otra.</p>
-              )}
-              {activePhotos.length > 1 && (
-                <BigButton
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setPhoto(null)
-                    setError(null)
-                    setMessage('Fotos quitadas del proyecto.')
-                  }}
-                >
-                  Quitar todas
-                </BigButton>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
-      <form className="project-form stack" onSubmit={onCreate}>
-        <h2 className="section-title">Nuevo proyecto</h2>
-        <div className="field">
-          <label htmlFor={nameId}>Nombre</label>
-          <input
-            id={nameId}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Bufanda de invierno"
-            required
-            autoComplete="off"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={notesId}>Notas (opcional)</label>
-          <textarea
-            id={notesId}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            placeholder="Hilo, agujas, patrón…"
-          />
-        </div>
-        <BigButton type="submit" variant="secondary" block>
-          Crear proyecto
-        </BigButton>
-      </form>
-
-      <div className="stack">
-        <h2 className="section-title">Tus proyectos</h2>
-        <div className="field">
-          <label htmlFor={searchId}>Buscar por nombre</label>
-          <input
-            id={searchId}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nombre, lana, agujas…"
-            autoComplete="off"
-          />
-        </div>
-        <fieldset className="project-filters">
-          <legend className="project-filters__legend">Mostrar</legend>
-          <div className="project-filters__row">
-            {PROJECT_FILTERS.map((f) => (
-              <BigButton
-                key={f.id}
-                type="button"
-                variant={filter === f.id ? 'primary' : 'ghost'}
-                aria-pressed={filter === f.id}
-                onClick={() => setFilter(f.id)}
-              >
-                {f.label}
-              </BigButton>
-            ))}
-          </div>
-        </fieldset>
-        {visibleOpen.length === 0 ? (
-          <p className="muted">
-            {query.trim() || filter !== 'all'
-              ? 'Ningún proyecto coincide con la búsqueda o el filtro.'
-              : 'Aún no hay proyectos activos.'}
-          </p>
-        ) : (
-          <div className="project-list" role="list">
-            {visibleOpen.map((p) => {
-              const isActive = p.id === state.activeId
-              const isEditing = editingId === p.id
-              return (
-                <article
-                  key={p.id}
-                  className={`project-card${isActive ? ' project-card--active' : ''}`}
-                  role="listitem"
-                >
-                  {isEditing ? (
-                    <form className="stack" onSubmit={saveEdit}>
-                      <div className="field">
-                        <label htmlFor={`edit-name-${p.id}`}>Nombre</label>
-                        <input
-                          id={`edit-name-${p.id}`}
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`edit-notes-${p.id}`}>Notas</label>
-                        <textarea
-                          id={`edit-notes-${p.id}`}
-                          value={editNotes}
-                          onChange={(e) => setEditNotes(e.target.value)}
-                          rows={2}
-                        />
-                      </div>
-                      <div className="row-actions">
-                        <BigButton type="submit" variant="primary">
-                          Guardar
-                        </BigButton>
-                        <BigButton
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setEditingId(null)}
-                        >
-                          Cancelar
-                        </BigButton>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="project-card__head">
-                        {p.photoDataUrl ? (
-                          <img
-                            className="project-card__thumb"
-                            src={p.photoDataUrl}
-                            alt=""
-                          />
-                        ) : (
-                          <div className="project-card__thumb project-card__thumb--empty" />
-                        )}
-                        <div>
-                          <h3 className="project-card__title">{p.name}</h3>
-                          <p className="project-card__meta">
-                            Vuelta {p.rows} · Punto {p.stitches} ·{' '}
-                            {formatRelativeDate(p.updatedAt)}
-                          </p>
-                          {p.notes && (
-                            <p className="project-card__notes">{p.notes}</p>
-                          )}
-                          {formatGauge(p) ? (
-                            <p className="project-card__notes muted">
-                              {formatGauge(p)}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="row-actions">
-                        {!isActive && (
-                          <BigButton
-                            type="button"
-                            variant="primary"
-                            onClick={() => {
-                              setActive(p.id)
-                              setError(null)
-                              setMessage(`Ahora trabajas en «${p.name}».`)
-                            }}
-                          >
-                            Usar
-                          </BigButton>
-                        )}
-                        {isActive && (
-                          <Link className="chip chip--active" to="/contador">
-                            Activo
-                          </Link>
-                        )}
-                        <BigButton
-                          type="button"
-                          variant="ghost"
-                          onClick={() => startEdit(p.id)}
-                        >
-                          Editar
-                        </BigButton>
-                        <BigButton
-                          type="button"
-                          variant="ghost"
-                          onClick={() => void onShareProject(p.id)}
-                        >
-                          Compartir
-                        </BigButton>
-                        <BigButton
-                          type="button"
-                          variant="ghost"
-                          onClick={() => onDuplicate(p.id)}
-                        >
-                          Duplicar
-                        </BigButton>
-                        <BigButton
-                          type="button"
-                          variant="ghost"
-                          disabled={openCount <= 1}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `¿Archivar «${p.name}»? No se borra; puedes restaurarlo.`,
-                              )
-                            ) {
-                              onArchive(p.id, p.name)
-                            }
-                          }}
-                        >
-                          Archivar
-                        </BigButton>
-                      </div>
-                    </>
-                  )}
-                </article>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {archivedCount > 0 && (
-        <div className="stack">
-          <h2 className="section-title">
-            Archivados ({archivedCount})
-          </h2>
-          <p className="muted">
-            Guardados por si te arrepientes. Restaurarlos los vuelve a poner
-            activos.
-          </p>
-          {visibleArchived.length === 0 ? (
-            <p className="muted">
-              Ningún archivado coincide con la búsqueda o el filtro.
-            </p>
-          ) : (
-            <div className="project-list" role="list">
-              {visibleArchived.map((p) => (
-                <article
-                  key={p.id}
-                  className="project-card project-card--archived"
-                  role="listitem"
-                >
-                  <div className="project-card__head">
-                    {p.photoDataUrl ? (
-                      <img
-                        className="project-card__thumb"
-                        src={p.photoDataUrl}
-                        alt=""
-                      />
-                    ) : (
-                      <div className="project-card__thumb project-card__thumb--empty" />
-                    )}
-                    <div>
-                      <h3 className="project-card__title">{p.name}</h3>
-                      <p className="project-card__meta">
-                        Archivado {formatRelativeDate(p.archivedAt ?? p.updatedAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="row-actions">
-                    <BigButton
-                      type="button"
-                      variant="secondary"
-                      onClick={() => onRestore(p.id, p.name)}
-                    >
-                      Restaurar
-                    </BigButton>
-                    <BigButton
-                      type="button"
-                      variant="danger"
-                      disabled={state.projects.length <= 1}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `¿Borrar «${p.name}» del todo? No se puede deshacer.`,
-                          )
-                        ) {
-                          deleteProject(p.id)
-                          setError(null)
-                          setMessage('Proyecto borrado.')
-                        }
-                      }}
-                    >
-                      Borrar
-                    </BigButton>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </section>
+      <ProjectTechSheetModal
+        project={techSheetProject}
+        isOpen={Boolean(techSheetProject)}
+        onClose={() => setTechSheetProject(null)}
+      />
+    </div>
   )
 }

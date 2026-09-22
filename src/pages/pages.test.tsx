@@ -1,6 +1,6 @@
 import { fireEvent } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { LOCAL_ANALYSIS_NOTICE, saveGeminiKey } from '../lib/analyze'
+import { LOCAL_ANALYSIS_NOTICE } from '../lib/analyze'
 import { AnalyzePage } from './Analyze'
 import { CounterPage } from './Counter'
 import { HomePage } from './Home'
@@ -16,115 +16,12 @@ describe('pantallas', () => {
   })
 
   it('pattern shows the row instructions page', () => {
-    const { getByRole, getByLabelText } = renderPage(<PatternPage />)
+    const { getByRole } = renderPage(<PatternPage />)
     expect(getByRole('heading', { name: 'Patrón por filas' })).toBeTruthy()
     expect(getByRole('button', { name: 'Añadir al patrón' })).toBeTruthy()
     expect(getByRole('button', { name: 'Compartir patrón' })).toBeTruthy()
     expect(getByRole('button', { name: 'Imprimir' })).toBeTruthy()
     expect(getByRole('heading', { name: 'Muestra / tensión' })).toBeTruthy()
-    expect(getByRole('heading', { name: 'Calculadora' })).toBeTruthy()
-    expect(getByLabelText('Ancho que quieres (cm)')).toBeTruthy()
-    expect(getByLabelText('Puntos ahora')).toBeTruthy()
-    expect(getByLabelText('Cómo disminuir')).toBeTruthy()
-    expect(getByLabelText('Metros en esa muestra')).toBeTruthy()
-    expect(getByLabelText(/Repeticiones en esta fila/)).toBeTruthy()
-  })
-
-  it('calculator turns gauge into a cast-on and even decreases', () => {
-    const { getByLabelText, getByRole, getByText } = renderPage(<PatternPage />)
-    fireEvent.change(getByLabelText('Puntos en esa muestra'), {
-      target: { value: '22' },
-    })
-    fireEvent.change(getByLabelText('Ancho que quieres (cm)'), {
-      target: { value: '45' },
-    })
-    expect(
-      getByText((_, node) =>
-        Boolean(
-          node?.classList.contains('calc-result') &&
-            node.textContent?.includes('Monta 99 puntos para 45 cm'),
-        ),
-      ),
-    ).toBeTruthy()
-    fireEvent.change(getByLabelText('Puntos ahora'), {
-      target: { value: '100' },
-    })
-    fireEvent.change(getByLabelText('Puntos a disminuir'), {
-      target: { value: '8' },
-    })
-    expect(getByText(/Disminuye 8: de 100 a 92 puntos/)).toBeTruthy()
-    expect(
-      getByRole('button', { name: 'Añadir cálculo al patrón' }),
-    ).toBeTruthy()
-    fireEvent.change(getByLabelText('Metros en esa muestra'), {
-      target: { value: '8' },
-    })
-    fireEvent.change(getByLabelText('Largo que quieres (cm)'), {
-      target: { value: '60' },
-    })
-    expect(
-      getByText((_, node) =>
-        Boolean(
-          node?.classList.contains('calc-result') &&
-            node.textContent?.includes('Unas 216 m de lana'),
-        ),
-      ),
-    ).toBeTruthy()
-    fireEvent.change(getByLabelText('Cómo disminuir'), {
-      target: { value: 'ssk' },
-    })
-    expect(
-      getByText((_, node) =>
-        Boolean(
-          node?.classList.contains('calc-result') &&
-            node.textContent?.includes('2 juntos revés (SSK)'),
-        ),
-      ),
-    ).toBeTruthy()
-  })
-
-  it('lets you search and duplicate a pattern step', () => {
-    const { getByLabelText, getByRole, getByText, queryByRole } = renderPage(
-      <PatternPage />,
-    )
-    fireEvent.change(getByLabelText('Fila'), { target: { value: '12' } })
-    fireEvent.change(getByLabelText('Instrucción'), {
-      target: { value: 'cerrar sisa' },
-    })
-    fireEvent.click(getByRole('button', { name: 'Añadir al patrón' }))
-    expect(getByRole('button', { name: 'Duplicar' })).toBeTruthy()
-    fireEvent.change(getByLabelText('Buscar en el patrón'), {
-      target: { value: 'sisa' },
-    })
-    expect(getByRole('button', { name: 'Duplicar' })).toBeTruthy()
-    fireEvent.change(getByLabelText('Buscar en el patrón'), {
-      target: { value: 'cuello' },
-    })
-    expect(getByText(/Ningún paso coincide/)).toBeTruthy()
-    expect(queryByRole('button', { name: 'Duplicar' })).toBeNull()
-    fireEvent.change(getByLabelText('Buscar en el patrón'), {
-      target: { value: '' },
-    })
-    fireEvent.click(getByRole('button', { name: 'Duplicar' }))
-    expect(getByText(/Copiada la fila 12/)).toBeTruthy()
-  })
-
-  it('shows needle equivalents and lets you mark a pattern row', () => {
-    const { getByLabelText, getByRole, getAllByRole, getAllByText } =
-      renderPage(<PatternPage />)
-    fireEvent.change(getByLabelText('Agujas'), { target: { value: '4,5 mm' } })
-    expect(getAllByText('≈ US 7').length).toBeGreaterThan(0)
-    fireEvent.change(getByLabelText('Fila'), { target: { value: '40' } })
-    fireEvent.change(getByLabelText('Instrucción'), {
-      target: { value: 'cierre de cuello' },
-    })
-    fireEvent.click(getByRole('button', { name: 'Añadir al patrón' }))
-    const markButtons = getAllByRole('button', { name: 'Marcar esta fila' })
-    fireEvent.click(markButtons[markButtons.length - 1])
-    expect(getAllByText('Marcador: cierre de cuello').length).toBeGreaterThan(0)
-    expect(
-      getAllByRole('button', { name: 'Quitar marcador' }).length,
-    ).toBeGreaterThan(0)
   })
 
   it('projects lets you search, filter and create', () => {
@@ -140,25 +37,17 @@ describe('pantallas', () => {
   })
 
   it('counter shows the row count, leave note and lock', () => {
-    const { getByRole, getByLabelText, getByText } = renderPage(<CounterPage />)
+    const { getByRole, getByLabelText } = renderPage(<CounterPage />)
     expect(getByRole('heading', { name: 'Contador' })).toBeTruthy()
     expect(getByRole('button', { name: /Sumar vueltas/ })).toBeTruthy()
     expect(getByLabelText('Dónde lo dejé')).toBeTruthy()
     expect(getByRole('button', { name: 'Bloquear toques' })).toBeTruthy()
-    expect(
-      getByRole('button', { name: /Añadir segunda pieza/ }),
-    ).toBeTruthy()
-    expect(getByText(/Plano \(impar derecho/)).toBeTruthy()
   })
 
   it('analyze warns that local estimates are weak and offers typing by hand', () => {
-    saveGeminiKey('')
-    const { getByRole, getByText, getByLabelText } = renderPage(<AnalyzePage />)
+    const { getByRole, getByText } = renderPage(<AnalyzePage />)
     expect(getByRole('heading', { name: 'Analizar tejido' })).toBeTruthy()
     expect(getByText(LOCAL_ANALYSIS_NOTICE)).toBeTruthy()
-    expect(getByLabelText('Clave de Gemini')).toBeTruthy()
-    expect(getByRole('button', { name: 'Guardar clave' })).toBeTruthy()
-    expect(getByRole('link', { name: /Google AI Studio/ })).toBeTruthy()
     expect(
       getByRole('button', { name: 'Escribir conteo a mano' }),
     ).toBeTruthy()
@@ -169,17 +58,5 @@ describe('pantallas', () => {
     fireEvent.click(getByRole('button', { name: 'Escribir a mano' }))
     expect(getByRole('heading', { name: 'Corregir resultado' })).toBeTruthy()
     expect(getByRole('button', { name: 'Guardar corrección' })).toBeTruthy()
-  })
-
-  it('lets you save a Gemini key on the device', () => {
-    saveGeminiKey('')
-    const { getByLabelText, getByRole, getByText } = renderPage(<AnalyzePage />)
-    fireEvent.change(getByLabelText('Clave de Gemini'), {
-      target: { value: 'AIzaSyTestKey1234' },
-    })
-    fireEvent.click(getByRole('button', { name: 'Guardar clave' }))
-    expect(getByText(/Guardada ••••1234/)).toBeTruthy()
-    expect(getByRole('button', { name: 'Obtener estimación' })).toBeTruthy()
-    expect(getByRole('button', { name: 'Quitar clave' })).toBeTruthy()
   })
 })

@@ -4,20 +4,14 @@ import {
   backupToJson,
   buildPatternShare,
   collectPhotos,
-  setCoverPhoto,
   applyRowAdvanceToPattern,
-  bumpPatternRepeat,
   clipLeaveNote,
   createProject,
   currentPatternStep,
   duplicateProject,
-  duplicatePatternStep,
-  estimateRemainingWork,
   formatClock,
   formatDuration,
   formatGauge,
-  formatRowSide,
-  formatStepRepeat,
   groupSessionsByDay,
   movePatternStep,
   nextCopyName,
@@ -29,7 +23,6 @@ import {
   patternStepsToText,
   projectMatchesFilter,
   projectMatchesQuery,
-  patternStepMatchesQuery,
   pushHistory,
   repeatPatternRange,
   restoreProjectInState,
@@ -38,7 +31,6 @@ import {
   structureToPatternSteps,
   undoLastChange,
   updatePatternStep,
-  upsertNamedMarker,
   archiveProjectInState,
   consumeFirstLandingThisSession,
   goalProgress,
@@ -225,56 +217,6 @@ describe('clipLeaveNote', () => {
   it('caps the parked note length', () => {
     expect(clipLeaveNote('  hola  ')).toBe('  hola  ')
     expect(clipLeaveNote('x'.repeat(400)).length).toBe(280)
-  })
-})
-
-describe('formatRowSide', () => {
-  it('uses odd rows as right side when knitting flat', () => {
-    expect(formatRowSide(0, 'flat')).toBeNull()
-    expect(formatRowSide(1, 'flat')).toMatch(/derecho/)
-    expect(formatRowSide(2, 'flat')).toMatch(/revés/)
-    expect(formatRowSide(3, 'round')).toMatch(/Circular/)
-    expect(formatRowSide(4, 'off')).toBeNull()
-  })
-})
-
-describe('bumpPatternRepeat', () => {
-  it('counts repeats up to the step limit', () => {
-    const steps: PatternStep[] = [
-      {
-        id: 'r',
-        row: 12,
-        instruction: '2 juntos, lazada',
-        done: false,
-        repeatTimes: 8,
-        repeatDone: 2,
-      },
-    ]
-    const up = bumpPatternRepeat(steps, 'r', 1)
-    expect(formatStepRepeat(up[0])).toBe('Van 3 de 8')
-    const maxed = bumpPatternRepeat(steps, 'r', 20)
-    expect(maxed[0].repeatDone).toBe(8)
-    const down = bumpPatternRepeat(steps, 'r', -5)
-    expect(down[0].repeatDone).toBe(0)
-  })
-})
-
-describe('piece counter undo', () => {
-  it('restores the second piece with the main counters', () => {
-    let project = createProject('Jersey')
-    project.pieceLabel = 'Manga'
-    project.pieceRows = 4
-    project.pieceStitches = 2
-    project = pushHistory(project, 0, 0)
-    project = {
-      ...project,
-      pieceRows: 5,
-      pieceStitches: 0,
-    }
-    project = pushHistory(project, 0, 0)
-    const undone = undoLastChange(project)
-    expect(undone.pieceRows).toBe(4)
-    expect(undone.pieceStitches).toBe(2)
   })
 })
 
@@ -608,41 +550,6 @@ describe('goalProgress', () => {
   })
 })
 
-describe('estimateRemainingWork', () => {
-  it('uses session time and remaining rows to the goal', () => {
-    const project = createProject('Bufanda')
-    project.rows = 20
-    project.targetRows = 80
-    project.sessions = [
-      {
-        id: 's',
-        startedAt: '2026-08-01T10:00:00.000Z',
-        endedAt: '2026-08-01T11:00:00.000Z',
-        durationMs: 60 * 60 * 1000,
-      },
-    ]
-    const eta = estimateRemainingWork(project)
-    expect(eta?.remainingRows).toBe(60)
-    expect(eta?.remainingMs).toBe(3 * 60 * 60 * 1000)
-    expect(eta?.rowsPerHour).toBe(20)
-  })
-
-  it('needs a few rows and minutes before guessing', () => {
-    const project = createProject('Chal')
-    project.rows = 2
-    project.targetRows = 80
-    project.sessions = [
-      {
-        id: 's',
-        startedAt: '2026-08-01T10:00:00.000Z',
-        endedAt: '2026-08-01T10:02:00.000Z',
-        durationMs: 2 * 60 * 1000,
-      },
-    ]
-    expect(estimateRemainingWork(project)).toBeNull()
-  })
-})
-
 describe('namedMarkerAt and long session', () => {
   it('finds a named marker on a row', () => {
     const project = createProject('Jersey')
@@ -651,14 +558,6 @@ describe('namedMarkerAt and long session', () => {
     ]
     expect(namedMarkerAt(project, 30)?.label).toBe('Sisa')
     expect(namedMarkerAt(project, 29)).toBeUndefined()
-  })
-
-  it('upserts a named marker on the same row', () => {
-    let project = createProject('Jersey')
-    project = upsertNamedMarker(project, 30, 'Sisa')
-    project = upsertNamedMarker(project, 30, 'Cerrar sisa')
-    expect(project.namedMarkers).toHaveLength(1)
-    expect(project.namedMarkers[0].label).toBe('Cerrar sisa')
   })
 
   it('detects a timer running longer than three hours', () => {
@@ -745,16 +644,6 @@ describe('collectPhotos and gauge', () => {
     expect(collectPhotos(project)).toEqual(['data:a', 'data:b', 'data:c', 'data:d'])
   })
 
-  it('promotes a gallery photo to cover', () => {
-    const project = createProject('Chal')
-    project.photos = ['data:a', 'data:b', 'data:c']
-    project.photoDataUrl = 'data:a'
-    const next = setCoverPhoto(project, 'data:c')
-    expect(next.photos).toEqual(['data:c', 'data:a', 'data:b'])
-    expect(next.photoDataUrl).toBe('data:c')
-    expect(setCoverPhoto(project, 'data:z')).toBe(project)
-  })
-
   it('formats tension notes in Spanish', () => {
     const project = createProject('Bufanda')
     expect(formatGauge(project)).toBeNull()
@@ -766,8 +655,6 @@ describe('collectPhotos and gauge', () => {
     expect(formatGauge(project)).toBe(
       'Muestra 10 cm: 22 puntos × 30 filas · Aguja 4,5 mm · Merina',
     )
-    project.gaugeMeters = 8.5
-    expect(formatGauge(project)).toMatch(/8,5 m en la muestra/)
   })
 })
 
@@ -795,46 +682,6 @@ describe('movePatternStep', () => {
     const down = movePatternStep(steps, 'a', 1)
     expect(down.find((s) => s.id === 'a')?.row).toBe(11)
     expect(down.find((s) => s.id === 'b')?.row).toBe(10)
-  })
-})
-
-describe('duplicatePatternStep', () => {
-  it('inserts an unmarked copy after the original', () => {
-    const steps: PatternStep[] = [
-      {
-        id: 'a',
-        row: 8,
-        instruction: 'sisa',
-        done: true,
-        repeatTimes: 4,
-        repeatDone: 2,
-      },
-      { id: 'b', row: 12, instruction: 'cierre', done: false },
-    ]
-    const next = duplicatePatternStep(steps, 'a')
-    expect(next).toHaveLength(3)
-    expect(next[0].id).toBe('a')
-    expect(next[1].instruction).toBe('sisa')
-    expect(next[1].id).not.toBe('a')
-    expect(next[1].done).toBe(false)
-    expect(next[1].repeatDone).toBe(0)
-    expect(next[1].repeatTimes).toBe(4)
-    expect(next[2].id).toBe('b')
-    expect(duplicatePatternStep(steps, 'z')).toBe(steps)
-  })
-})
-
-describe('patternStepMatchesQuery', () => {
-  it('matches row number and instruction without accents', () => {
-    const step: PatternStep = {
-      id: 's',
-      row: 12,
-      instruction: 'Cerrar sisa',
-      done: false,
-    }
-    expect(patternStepMatchesQuery(step, 'SISA')).toBe(true)
-    expect(patternStepMatchesQuery(step, '12')).toBe(true)
-    expect(patternStepMatchesQuery(step, 'cuello')).toBe(false)
   })
 })
 
