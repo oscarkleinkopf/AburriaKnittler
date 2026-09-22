@@ -13,7 +13,8 @@ import {
   totalSessionMs,
 } from '../lib/projects'
 
-const heroSrc = `${import.meta.env.BASE_URL}hero-knit.webp`
+const heroWebp = `${import.meta.env.BASE_URL}hero-knit.webp`
+const heroPng = `${import.meta.env.BASE_URL}hero-knit.png`
 
 export function HomePage() {
   const { active, state, stopTimer } = useProjects()
@@ -72,6 +73,12 @@ export function HomePage() {
               <BigButton to="/patron" variant="secondary">
                 Ver patrón
               </BigButton>
+              <BigButton to="/analizar" variant="ghost">
+                Analizar imagen
+              </BigButton>
+              <BigButton to="/proyectos" variant="ghost">
+                Proyectos
+              </BigButton>
             </div>
           </div>
         )}
@@ -97,28 +104,26 @@ export function HomePage() {
           </>
         )}
 
-        {showResume && (
-          <div className="hero__actions">
-            <BigButton to="/analizar" variant="ghost">
-              Analizar imagen
-            </BigButton>
-            <BigButton to="/proyectos" variant="ghost">
-              Proyectos
-            </BigButton>
-          </div>
-        )}
+      </div>
 
+      <div className="hero__visual-wrap">
+        <picture>
+          <source srcSet={heroWebp} type="image/webp" />
+          <img
+            className="hero__visual"
+            src={heroPng}
+            alt="AburriaKnittler: tejiendo junto a un robot asistente"
+            width={1024}
+            height={1024}
+            decoding="async"
+          />
+        </picture>
+      </div>
+
+      <div className="hero__footer">
         <InstallHint />
         <DataCareBanners state={state} />
       </div>
-      <img
-        className="hero__visual"
-        src={heroSrc}
-        alt="AburriaKnittler: tejiendo junto a un robot asistente"
-        width={1024}
-        height={1024}
-        decoding="async"
-      />
     </section>
   )
 }

@@ -3,6 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { FontSizeControls } from './FontSizeControls'
 import { usePrefs } from '../lib/PrefsContext'
 
+const logoSrc = `${import.meta.env.BASE_URL}icons/icon-192.png`
+
 export function AppShell() {
   const [a11yOpen, setA11yOpen] = useState(false)
   const panelId = useId()
@@ -14,7 +16,14 @@ export function AppShell() {
       <header className="shell__header">
         <div className="shell__top">
           <NavLink to="/" className="shell__brand" end>
-            AburriaKnittler
+            <img
+              src={logoSrc}
+              alt=""
+              className="shell__logo"
+              width={34}
+              height={34}
+            />
+            <span>AburriaKnittler</span>
           </NavLink>
           <button
             type="button"
