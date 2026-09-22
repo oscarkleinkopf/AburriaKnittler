@@ -275,9 +275,12 @@
 
 .hero__visual {
   display: block;
-  width: 100%;
-  height: clamp(220px, 42vh, 420px);
-  object-fit: cover;
+  width: min(100%, 380px);
+  max-height: clamp(220px, 42vh, 400px);
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 1.5rem;
+  box-shadow: 0 16px 36px -10px rgba(31, 64, 51, 0.22);
   border: 0;
 }
 

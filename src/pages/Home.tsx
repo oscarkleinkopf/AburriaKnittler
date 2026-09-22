@@ -13,7 +13,7 @@ import {
   totalSessionMs,
 } from '../lib/projects'
 
-const heroSrc = `${import.meta.env.BASE_URL}hero-knit.svg`
+const heroSrc = `${import.meta.env.BASE_URL}hero-knit.webp`
 
 export function HomePage() {
   const { active, state, stopTimer } = useProjects()
@@ -114,9 +114,9 @@ export function HomePage() {
       <img
         className="hero__visual"
         src={heroSrc}
-        alt=""
-        width={1200}
-        height={640}
+        alt="AburriaKnittler: tejiendo junto a un robot asistente"
+        width={1024}
+        height={1024}
         decoding="async"
       />
     </section>

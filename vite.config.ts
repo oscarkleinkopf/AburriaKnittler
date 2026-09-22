@@ -13,7 +13,20 @@ export default defineConfig({
     ...(process.env.VITEST ? [] : [netlify()]),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/icon.svg', 'hero-knit.svg'],
+      includeAssets: [
+        'favicon.svg',
+        'favicon.png',
+        'favicon-32.png',
+        'apple-touch-icon.png',
+        'icons/icon.svg',
+        'icons/icon.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/icon-maskable-512.png',
+        'hero-knit.webp',
+        'hero-knit.png',
+        'hero-knit.svg',
+      ],
       manifest: {
         name: 'AburriaKnittler',
         short_name: 'Aburria',
@@ -26,6 +39,24 @@ export default defineConfig({
         scope: base,
         lang: 'es',
         icons: [
+          {
+            src: 'icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
           {
             src: 'icons/icon.svg',
             sizes: 'any',
