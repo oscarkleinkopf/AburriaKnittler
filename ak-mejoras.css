@@ -1,0 +1,44 @@
+/* AburriaKnittler — mejoras tej-centered (auto primero, sin contar) */
+.ak-guia{background:var(--color-surface,#fff);border:2px solid var(--color-line-strong,#2f5d4a47);border-radius:12px;padding:1rem 1.1rem;margin:0 0 1rem;box-shadow:var(--shadow-soft,0 12px 40px #1f403314)}
+.ak-guia h2{margin:.1rem 0 .5rem;font-size:1.25rem}
+.ak-guia ol{margin:.4rem 0 .2rem;padding-left:1.3rem;display:grid;gap:.35rem}
+.ak-guia small{color:var(--color-ink-muted,#3d5a4c)}
+.ak-mini{font-size:1rem;color:var(--color-ink-muted,#3d5a4c);margin:.35rem 0 0}
+
+.ak-foto{border:2px dashed var(--color-line-strong,#2f5d4a47);border-radius:12px;padding:1rem;margin:1rem 0;background:#ffffff70}
+.ak-foto__btn{display:block;width:100%;min-height:4.5rem;font-size:1.3rem;font-weight:700;border-radius:12px;border:2px solid var(--color-brand,#2f5d4a);background:var(--color-brand,#2f5d4a);color:var(--color-on-brand,#f7fbf6);cursor:pointer;padding:.9rem}
+.ak-foto__btn:active{transform:scale(.99)}
+.ak-foto__nombre{display:block;margin-top:.5rem;font-size:1.05rem}
+.ak-foto input[type=file]{width:100%;min-height:3.5rem;margin-top:.6rem;font-size:1.1rem}
+
+.ak-prev{margin-top:1rem;border:1px solid var(--color-line,#2f5d4a2e);border-radius:12px;overflow:hidden;background:#fff}
+.ak-prev img{display:block;width:100%;height:auto;max-height:52vh;object-fit:contain;background:#111}
+.ak-marca{position:relative;margin:.8rem;border:2px solid var(--color-brand,#2f5d4a);border-radius:10px;min-height:120px;background:
+  repeating-linear-gradient(90deg,#0000 0 10px,#2f5d4a14 10px 11px),
+  repeating-linear-gradient(0deg,#0000 0 10px,#2f5d4a14 10px 11px),#f3f6f1}
+.ak-marca__caja{position:absolute;border:3px solid var(--color-accent,#c45c26);background:#c45c2622;border-radius:6px;box-shadow:0 0 0 2px #fff inset}
+.ak-marca__caja::after{content:"1 punto × 1 fila";position:absolute;left:50%;top:100%;transform:translateX(-50%);background:#1a2e24;color:#fff;font-size:.85rem;padding:.1rem .5rem;border-radius:99px;white-space:nowrap;margin-top:4px}
+.ak-ctrl{display:grid;gap:.7rem;padding:.9rem}
+.ak-ctrl__fila{display:grid;grid-template-columns:1fr auto auto auto;gap:.5rem;align-items:center}
+.ak-ctrl__fila label{font-weight:700}
+.ak-ctrl__val{min-width:4.5ch;text-align:center;font-weight:700}
+.ak-btn{min-height:3.5rem;min-width:3.5rem;font-size:1.4rem;font-weight:700;border-radius:12px;border:2px solid var(--color-brand,#2f5d4a);background:#fff;cursor:pointer;padding:.4rem .9rem}
+.ak-btn--primary{background:var(--color-brand,#2f5d4a);color:var(--color-on-brand,#f7fbf6)}
+.ak-result{background:#1a2e24;color:#f3f6f1;border-radius:10px;padding:.8rem 1rem;font-size:1.25rem;margin:0 .9rem .9rem}
+.ak-result strong{font-size:1.5rem}
+.ak-acciones{display:flex;flex-wrap:wrap;gap:.6rem;padding:0 .9rem .9rem}
+.ak-nota{font-size:.95rem;color:var(--color-ink-muted,#3d5a4c);padding:0 .9rem .9rem}
+
+.ak-manual-note{border-left:5px solid var(--color-accent,#c45c26);padding:.6rem .9rem;margin:1rem 0;background:#f3d9c855;border-radius:0 10px 10px 0}
+
+/* Contador manos libres */
+.ak-voz{min-height:3.5rem;font-size:1.15rem;border-radius:12px;border:2px solid var(--color-brand,#2f5d4a);background:#fff;cursor:pointer;padding:.5rem 1rem;width:100%;margin:.6rem 0}
+.ak-voz[data-on="1"]{background:#1a2e24;color:#fff}
+.ak-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (pointer:coarse){
+  .counter-btn--main,.counter-btn--plus{position:sticky;bottom:calc(.6rem + env(safe-area-inset-bottom));z-index:6;min-height:5.5rem!important;font-size:1.6rem!important;box-shadow:0 10px 30px #0006}
+  .counter-btn--minus{min-height:4.5rem!important;font-size:1.3rem!important}
+}
+/* Contraste tarjeta proyecto clara */
+.filter-chip{color:var(--color-ink,#1a2e24)}
+.big-button--secondary,.big-button--ghost{color:var(--color-ink,#1a2e24)}
