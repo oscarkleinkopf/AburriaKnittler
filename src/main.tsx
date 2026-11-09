@@ -6,9 +6,11 @@ import App from './App'
 import { PrefsProvider } from './lib/PrefsContext'
 import { ProjectsProvider } from './lib/ProjectsContext'
 import { applyColorTheme, applyFontScale, applyHighContrast, loadColorTheme, loadFontScale, loadHighContrast } from './lib/prefs'
+import { installGeminiKeyGuard } from './lib/geminiFetchGuard'
 import './styles/tokens.css'
 import './styles/app.css'
 
+installGeminiKeyGuard()
 registerSW({ immediate: true })
 applyFontScale(loadFontScale())
 applyHighContrast(loadHighContrast())

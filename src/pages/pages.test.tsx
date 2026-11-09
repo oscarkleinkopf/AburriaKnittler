@@ -1,6 +1,9 @@
 import { fireEvent } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { LOCAL_ANALYSIS_NOTICE } from '../lib/analyze'
+import {
+  LOCAL_ANALYSIS_NOTICE,
+  PHOTO_LEAVE_DEVICE_NOTICE,
+} from '../lib/analyze'
 import { AnalyzePage } from './Analyze'
 import { CounterPage } from './Counter'
 import { HomePage } from './Home'
@@ -48,6 +51,7 @@ describe('pantallas', () => {
     const { getByRole, getByText } = renderPage(<AnalyzePage />)
     expect(getByRole('heading', { name: 'Analizar tejido' })).toBeTruthy()
     expect(getByText(LOCAL_ANALYSIS_NOTICE)).toBeTruthy()
+    expect(getByText(PHOTO_LEAVE_DEVICE_NOTICE)).toBeTruthy()
     expect(
       getByRole('button', { name: 'Escribir conteo a mano' }),
     ).toBeTruthy()

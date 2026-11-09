@@ -145,23 +145,28 @@ async function demoAnalyze(file: File): Promise<AnalyzeResult> {
     estimatedRows: Math.min(Math.max(rows, 20), 600),
     stitchType: 'Punto jersey (estimación local)',
     patternStructure:
-      'Modo demo: conteo aproximado según el tamaño de la foto. Para un análisis visual real, configura VITE_GEMINI_API_KEY.',
+      'Modo demo: conteo aproximado según el tamaño de la foto. El análisis visual con Gemini no está configurado en este sitio.',
     confidence: 'baja',
     notes:
       'Sin clave de Gemini: resultado orientativo generado en el dispositivo. No sustituye un recuento manual.',
   }
 }
 
+export const GEMINI_GENERATE_CONTENT_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+
 async function geminiAnalyze(
   file: File,
   apiKey: string,
 ): Promise<AnalyzeResult> {
   const { mimeType, data } = await imageToVisionPayload(file)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`
 
-  const res = await fetch(url, {
+  const res = await fetch(GEMINI_GENERATE_CONTENT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body: JSON.stringify({
       contents: [
         {
@@ -257,7 +262,10 @@ export function hasVision(): boolean {
 
 /** Sin clave, la foto no «ve» el tejido: solo usa el tamaño del archivo. */
 export const LOCAL_ANALYSIS_NOTICE =
-  'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano, o pegar una clave de Gemini (se queda en este aparato).'
+  'Sin modelo de IA, la foto solo estima por el tamaño de la imagen: es poco preciso. Es más fiable escribir el conteo a mano. Una clave de Gemini en este navegador envía la foto a Google.'
+
+export const PHOTO_LEAVE_DEVICE_NOTICE =
+  'Sin clave de Gemini nada sale de tu aparato. Con clave, la foto se envía a Google.'
 
 export function isLocalAnalysis(result: AnalyzeResult | null): boolean {
   if (!result) return false
