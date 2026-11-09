@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   analyzeApiPath,
+  analyzeGarmentPhoto,
   analyzeViaServer,
   hasGeminiKey,
   hasServerVision,
@@ -8,6 +9,8 @@ import {
   isLocalAnalysis,
   loadGeminiKey,
   LOCAL_ANALYSIS_NOTICE,
+  PHOTO_LEAVE_DEVICE_NOTICE,
+  GEMINI_GENERATE_CONTENT_URL,
   maskGeminiKey,
   resolveGeminiKey,
   saveGeminiKey,
@@ -42,10 +45,15 @@ function mockStorage(initial: Record<string, string> = {}) {
 }
 
 describe('local analysis', () => {
-  it('explains that the photo estimate is weak and points to typing by hand', () => {
+  it('explains that the photo estimate is weak and that a Gemini key sends the photo to Google', () => {
     expect(LOCAL_ANALYSIS_NOTICE).toMatch(/poco preciso/i)
     expect(LOCAL_ANALYSIS_NOTICE).toMatch(/a mano/i)
     expect(LOCAL_ANALYSIS_NOTICE).toMatch(/Gemini/)
+    expect(LOCAL_ANALYSIS_NOTICE).not.toMatch(/pegar una clave/)
+    expect(LOCAL_ANALYSIS_NOTICE).not.toMatch(/VITE_GEMINI_API_KEY/)
+    expect(LOCAL_ANALYSIS_NOTICE).toMatch(/envía la foto a Google/)
+    expect(PHOTO_LEAVE_DEVICE_NOTICE).toMatch(/se envía a Google/)
+    expect(PHOTO_LEAVE_DEVICE_NOTICE).not.toMatch(/Nada sale de tu aparato salvo/)
   })
 
   it('detects the on-device demo result', () => {
@@ -136,6 +144,56 @@ describe('server vision API', () => {
     await expect(analyzeViaServer(file, '/api/analizar')).rejects.toThrow(
       /aún no está lista/i,
     )
+  })
+})
+
+describe('client Gemini requests', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('sends the API key in x-goog-api-key, not in the URL', async () => {
+    mockStorage()
+    saveGeminiKey('secret-test-key')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    estimatedStitches: 80,
+                    estimatedRows: 40,
+                    stitchType: 'jersey',
+                    patternStructure: 'plano',
+                    confidence: 'media',
+                    notes: 'ok',
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File(['hello'], 'knit.jpg', { type: 'image/jpeg' })
+    const result = await analyzeGarmentPhoto(file)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(GEMINI_GENERATE_CONTENT_URL)
+    expect(String(url)).not.toContain('key=')
+    const headers = new Headers(init.headers)
+    expect(headers.get('x-goog-api-key')).toBe('secret-test-key')
+    expect(headers.get('Content-Type')).toBe('application/json')
+    expect(result).toMatchObject({
+      estimatedStitches: 80,
+      estimatedRows: 40,
+      stitchType: 'jersey',
+    })
   })
 })
 

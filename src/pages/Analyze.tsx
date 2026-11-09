@@ -11,6 +11,7 @@ import {
   analyzeGarmentPhoto,
   hasGeminiKey,
   LOCAL_ANALYSIS_NOTICE,
+  PHOTO_LEAVE_DEVICE_NOTICE,
   type AnalyzeResult,
 } from '../lib/analyze'
 import { renderPreparedImage, type PrepState } from '../lib/imagePrep'
@@ -344,6 +345,7 @@ export function AnalyzePage() {
             accept="image/*"
             onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
           />
+          <p className="section-desc">{PHOTO_LEAVE_DEVICE_NOTICE}</p>
         </div>
 
         {prep && (
