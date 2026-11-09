@@ -1,0 +1,9 @@
+{
+  "name": "aburriaknittler",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "lint": "node --check ak-security.js tests/gemini-fetch.test.cjs tests/artifacts.test.cjs tests/estimate.test.cjs",
+    "build": "node --check ak-security.js"
+  }
+}

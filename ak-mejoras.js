@@ -57,7 +57,7 @@
         '<li><strong>Paso 1 — Foto:</strong> solo el tejido, con luz, de frente.</li>' +
         '<li><strong>Paso 2 — Marca 1 punto:</strong> ajusta el recuadro a <em>un solo punto</em> y <em>una sola fila</em> con los botones + / −.</li>' +
         '<li><strong>Paso 3 — Listo:</strong> la app estima puntos y filas. Tú no cuentas.</li></ol>' +
-        '<p class="ak-mini">Si la foto es solo tejido, el cálculo es mejor. Moneda o regla al lado ayudan.</p>';
+        '<p class="ak-mini">Por defecto el cálculo es local: la app no “ve” el dibujo, estima con el recuadro de 1 punto. Si hay una clave de Gemini en este navegador, la foto se envía a Google para el análisis visual.</p>';
       main.insertBefore(g, main.firstChild);
     }
 
@@ -67,7 +67,7 @@
       wrap.innerHTML = '<button type="button" class="ak-foto__btn" id="ak-foto-btn">📷 Sacar / elegir foto del tejido</button>' +
         '<span class="ak-foto__nombre" id="ak-foto-nombre">Sin foto aún — la app cuenta por ti.</span>' +
         '<div id="ak-prev-slot"></div>' +
-        '<p class="ak-mini">Formatos de imagen. Nada sale de tu aparato salvo que lo compartas.</p>';
+        '<p class="ak-mini">Formatos de imagen. Sin clave de Gemini nada sale de tu aparato. Con clave, la foto se envía a Google.</p>';
       file.parentNode.insertBefore(wrap, file);
       wrap.appendChild(file);
       $('#ak-foto-btn').addEventListener('click', function () { file.click(); });
